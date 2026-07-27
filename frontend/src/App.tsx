@@ -33,10 +33,12 @@ function App() {
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
 
+    const [bannerDismissed, setBannerDismissed] = useState(false);
+
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
     useEffect(() => {
-        ChangedFiles().then(setFiles);
+        ChangedFiles().then((f) => setFiles(f ?? []));
         checkReadiness();
     }, []);
 
@@ -78,14 +80,15 @@ function App() {
 
     return (
         <div id="App-root">
-            {!ready && (
-                <div className="readiness-banner" onClick={openConfigDialog}>
+            {!ready && !bannerDismissed && (
+                <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
-                    <span>
-                        {!hasKey && usedFallback
-                            ? "API key loaded from environment variable fallback (OS keyring unavailable) — click to configure"
-                            : "mdiff is not configured for Explain — click to set base URL, model, and API key"}
+                    <span className="readiness-banner-text">
+                        AI features are disabled.
+                        {!hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
                     </span>
+                    <button className="readiness-banner-action" onClick={openConfigDialog}>Config</button>
+                    <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
                 </div>
             )}
             <div id="App">

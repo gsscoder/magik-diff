@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -149,6 +150,34 @@ func TestChangedFiles_Renamed(t *testing.T) {
 	}
 	if got.OrigPath != "old.txt" {
 		t.Errorf("OrigPath = %q, want %q", got.OrigPath, "old.txt")
+	}
+}
+
+// A clean repo must marshal to a JSON array ("[]"), not "null" — the Wails
+// binding layer round-trips this through encoding/json to the frontend,
+// where `null.map(...)` crashes the whole React tree. A nil Go slice
+// marshals to "null", so ChangedFiles must never return a nil slice.
+func TestChangedFiles_CleanRepoMarshalsToEmptyArrayNotNull(t *testing.T) {
+	dir := initRepo(t)
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "initial")
+
+	changes, err := ChangedFiles()
+	if err != nil {
+		t.Fatalf("ChangedFiles: %v", err)
+	}
+	if changes == nil {
+		t.Fatal("ChangedFiles returned a nil slice for a clean repo, want non-nil empty slice")
+	}
+	if len(changes) != 0 {
+		t.Fatalf("changes = %+v, want empty", changes)
+	}
+
+	b, err := json.Marshal(changes)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if string(b) != "[]" {
+		t.Errorf("json.Marshal(changes) = %s, want []", b)
 	}
 }
 

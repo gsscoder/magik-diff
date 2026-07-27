@@ -56,6 +56,7 @@ func FileDiff(path string) (string, error) {
 // stdout. On failure it returns an error including git's stderr output.
 func runGit(args ...string) ([]byte, error) {
 	cmd := exec.Command("git", args...)
+	hideConsole(cmd)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -72,7 +73,7 @@ func runGit(args ...string) ([]byte, error) {
 // additional NUL-terminated ORIG_PATH record immediately after.
 func parsePorcelain(out []byte) []FileChange {
 	tokens := strings.Split(string(out), "\x00")
-	var changes []FileChange
+	changes := []FileChange{}
 	for i := 0; i < len(tokens); i++ {
 		record := tokens[i]
 		if len(record) < 3 {

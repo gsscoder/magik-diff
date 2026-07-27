@@ -6,6 +6,7 @@
   "frontend:build": "npm run build",
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
+  "build:tags": "native_webview2loader",
   "author": {
     "name": "Giacomo Stelluti Scala",
     "email": "gsscoder@gmail.com"
