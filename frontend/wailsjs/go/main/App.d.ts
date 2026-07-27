@@ -7,6 +7,10 @@ export function APIKeyUsedFallback():Promise<boolean>;
 
 export function ChangedFiles():Promise<Array<gitdiff.FileChange>>;
 
+export function CommitFileDiff(arg1:string,arg2:string):Promise<string>;
+
+export function CommitFiles(arg1:string):Promise<Array<gitdiff.FileChange>>;
+
 export function ExplainFile(arg1:string):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<string>;
@@ -16,6 +20,8 @@ export function GetConfig():Promise<config.Config>;
 export function Greet(arg1:string):Promise<string>;
 
 export function HasAPIKey():Promise<boolean>;
+
+export function RecentCommits(arg1:number,arg2:number):Promise<Array<gitdiff.Commit>>;
 
 export function SaveConfig(arg1:config.Config):Promise<void>;
 

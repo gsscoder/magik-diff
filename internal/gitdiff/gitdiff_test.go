@@ -200,3 +200,148 @@ func TestFileDiff_ModifiedContainsAddedAndRemovedLines(t *testing.T) {
 		t.Errorf("diff missing added line, got:\n%s", diff)
 	}
 }
+
+func TestRecentCommits_NewestFirstWithFields(t *testing.T) {
+	dir := initRepo(t)
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "first")
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "second")
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "third")
+
+	commits, err := RecentCommits(0, 200)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	if len(commits) != 3 {
+		t.Fatalf("len(commits) = %d, want 3: %+v", len(commits), commits)
+	}
+	for i, want := range []string{"third", "second", "first"} {
+		if commits[i].Subject != want {
+			t.Errorf("commits[%d].Subject = %q, want %q", i, commits[i].Subject, want)
+		}
+	}
+	head := commits[0]
+	if head.Hash == "" || head.Author != "Test User" || head.Date == "" {
+		t.Errorf("head commit fields incomplete: %+v", head)
+	}
+}
+
+func TestRecentCommits_Paging(t *testing.T) {
+	dir := initRepo(t)
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "first")
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "second")
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "third")
+
+	page, err := RecentCommits(2, 2)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	if len(page) != 1 || page[0].Subject != "first" {
+		t.Errorf("RecentCommits(2, 2) = %+v, want just the oldest commit", page)
+	}
+}
+
+func TestRecentCommits_EmptyRepoReturnsEmptyNotError(t *testing.T) {
+	initRepo(t)
+
+	commits, err := RecentCommits(0, 200)
+	if err != nil {
+		t.Fatalf("RecentCommits on empty repo: %v", err)
+	}
+	if commits == nil {
+		t.Fatal("RecentCommits returned a nil slice for an empty repo, want non-nil empty slice")
+	}
+	if len(commits) != 0 {
+		t.Fatalf("commits = %+v, want empty", commits)
+	}
+}
+
+func TestCommitFiles_AddModifyDeleteRename(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "keep.txt", "old content\n")
+	writeFile(t, dir, "gone.txt", "to be deleted\n")
+	writeFile(t, dir, "old.txt", "same content\n")
+	runGitIn(t, dir, "add", ".")
+	runGitIn(t, dir, "commit", "-q", "-m", "initial")
+
+	writeFile(t, dir, "keep.txt", "new content\n")
+	writeFile(t, dir, "new.txt", "brand new\n")
+	if err := os.Remove(filepath.Join(dir, "gone.txt")); err != nil {
+		t.Fatalf("remove gone.txt: %v", err)
+	}
+	runGitIn(t, dir, "mv", "old.txt", "renamed.txt")
+	runGitIn(t, dir, "add", ".")
+	runGitIn(t, dir, "commit", "-q", "-m", "changes")
+
+	head, err := RecentCommits(0, 1)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	changes, err := CommitFiles(head[0].Hash)
+	if err != nil {
+		t.Fatalf("CommitFiles: %v", err)
+	}
+	for path, want := range map[string]ChangeType{
+		"keep.txt":    Modified,
+		"new.txt":     Added,
+		"gone.txt":    Deleted,
+		"renamed.txt": Renamed,
+	} {
+		if got := findChange(t, changes, path); got.Type != want {
+			t.Errorf("%s: Type = %q, want %q", path, got.Type, want)
+		}
+	}
+	if got := findChange(t, changes, "renamed.txt"); got.OrigPath != "old.txt" {
+		t.Errorf("renamed.txt: OrigPath = %q, want %q", got.OrigPath, "old.txt")
+	}
+}
+
+func TestCommitFiles_RootCommitListsAllFilesAsAdded(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "one.txt", "one\n")
+	writeFile(t, dir, "two.txt", "two\n")
+	runGitIn(t, dir, "add", ".")
+	runGitIn(t, dir, "commit", "-q", "-m", "initial")
+
+	commits, err := RecentCommits(0, 1)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	changes, err := CommitFiles(commits[0].Hash)
+	if err != nil {
+		t.Fatalf("CommitFiles: %v", err)
+	}
+	if len(changes) != 2 {
+		t.Fatalf("len(changes) = %d, want 2: %+v", len(changes), changes)
+	}
+	for _, c := range changes {
+		if c.Type != Added {
+			t.Errorf("%s: Type = %q, want %q", c.Path, c.Type, Added)
+		}
+	}
+}
+
+func TestCommitFileDiff_ContainsAddedAndRemovedLines(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "file.txt", "unchanged line\nold line\n")
+	runGitIn(t, dir, "add", "file.txt")
+	runGitIn(t, dir, "commit", "-q", "-m", "initial")
+
+	writeFile(t, dir, "file.txt", "unchanged line\nnew line\n")
+	runGitIn(t, dir, "add", "file.txt")
+	runGitIn(t, dir, "commit", "-q", "-m", "change")
+
+	head, err := RecentCommits(0, 1)
+	if err != nil {
+		t.Fatalf("RecentCommits: %v", err)
+	}
+	diff, err := CommitFileDiff(head[0].Hash, "file.txt")
+	if err != nil {
+		t.Fatalf("CommitFileDiff: %v", err)
+	}
+	if !strings.Contains(diff, "-old line") {
+		t.Errorf("diff missing removed line, got:\n%s", diff)
+	}
+	if !strings.Contains(diff, "+new line") {
+		t.Errorf("diff missing added line, got:\n%s", diff)
+	}
+}

@@ -45,7 +45,8 @@ Rejected: GitHub-Desktop-style repo picker. GH Desktop is the named anti-pattern
 ## 3. Layout
 Status: LOCKED — "Layout A, synced narrative"
 Decision: three regions — a dual-purpose left rail, unified diff center, AI prose right pane. Scroll-locked: hovering an AI paragraph highlights its source hunk.
-Left rail is one region, not two. Contents switch by top-level mode tab (Working tree / Staged / History): file list in working-tree/staged modes, commit list in history mode.
+Left rail is one region, not two. Contents switch by top-level mode tab (Changes / History): file list of working-tree changes (staged and unstaged combined) in Changes mode, commit list in History mode.
+Revision note: the tab set was originally Working tree / Staged / History. Overturned via explicit user decision: two tabs, Changes and History, with no separate Staged mode. Do not resurrect the three-tab version without a new explicit user decision.
 Rejected for the rail:
 
 - Permanent two-rail layout (commit rail + file rail simultaneously): too cramped under 1400px viewport width.

@@ -19,6 +19,24 @@ export namespace config {
 
 export namespace gitdiff {
 	
+	export class Commit {
+	    Hash: string;
+	    Author: string;
+	    Date: string;
+	    Subject: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Commit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Hash = source["Hash"];
+	        this.Author = source["Author"];
+	        this.Date = source["Date"];
+	        this.Subject = source["Subject"];
+	    }
+	}
 	export class FileChange {
 	    Path: string;
 	    OrigPath: string;

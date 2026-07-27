@@ -10,6 +10,14 @@ export function ChangedFiles() {
   return window['go']['main']['App']['ChangedFiles']();
 }
 
+export function CommitFileDiff(arg1, arg2) {
+  return window['go']['main']['App']['CommitFileDiff'](arg1, arg2);
+}
+
+export function CommitFiles(arg1) {
+  return window['go']['main']['App']['CommitFiles'](arg1);
+}
+
 export function ExplainFile(arg1) {
   return window['go']['main']['App']['ExplainFile'](arg1);
 }
@@ -28,6 +36,10 @@ export function Greet(arg1) {
 
 export function HasAPIKey() {
   return window['go']['main']['App']['HasAPIKey']();
+}
+
+export function RecentCommits(arg1, arg2) {
+  return window['go']['main']['App']['RecentCommits'](arg1, arg2);
 }
 
 export function SaveConfig(arg1) {

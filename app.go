@@ -41,6 +41,23 @@ func (a *App) FileDiff(path string) (string, error) {
 	return gitdiff.FileDiff(path)
 }
 
+// RecentCommits returns up to count commits from the repository history,
+// newest first, skipping the first skip commits for paging.
+func (a *App) RecentCommits(skip, count int) ([]gitdiff.Commit, error) {
+	return gitdiff.RecentCommits(skip, count)
+}
+
+// CommitFiles lists every path changed by the given commit.
+func (a *App) CommitFiles(hash string) ([]gitdiff.FileChange, error) {
+	return gitdiff.CommitFiles(hash)
+}
+
+// CommitFileDiff returns the raw unified diff text for path as changed by
+// the given commit.
+func (a *App) CommitFileDiff(hash, path string) (string, error) {
+	return gitdiff.CommitFileDiff(hash, path)
+}
+
 // GetConfig returns the current non-secret application settings.
 func (a *App) GetConfig() (config.Config, error) {
 	return config.Load()

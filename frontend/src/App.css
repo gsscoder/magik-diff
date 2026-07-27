@@ -93,6 +93,71 @@
     border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.rail-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.rail-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 8px 0;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.rail-tab.selected {
+    color: #fff;
+    box-shadow: inset 0 -2px 0 #fff;
+}
+
+.commit-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.commit-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.commit-subject {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.commit-meta {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.5);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-back {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+    padding: 6px 10px;
+    cursor: pointer;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-back:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
 .file-list {
     list-style: none;
     margin: 0;
@@ -115,8 +180,27 @@
 }
 
 .file-type {
-    font-weight: bold;
     width: 1em;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.status-modified {
+    color: #d29922;
+}
+
+.status-added {
+    color: #3fb950;
+    font-weight: bold;
+}
+
+.status-deleted {
+    color: #f85149;
+    font-weight: bold;
+}
+
+.status-renamed {
+    color: #a371f7;
 }
 
 .file-path {

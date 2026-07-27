@@ -30,6 +30,54 @@ type FileChange struct {
 	Type     ChangeType
 }
 
+// Commit describes one commit in the repository history.
+type Commit struct {
+	Hash    string
+	Author  string
+	Date    string
+	Subject string
+}
+
+// RecentCommits returns up to count commits from `git log`, newest first,
+// skipping the first skip commits so the caller can page through history.
+// A repository with no commits yet yields an empty list, not an error.
+func RecentCommits(skip, count int) ([]Commit, error) {
+	out, err := runGit("log",
+		fmt.Sprintf("--skip=%d", skip),
+		fmt.Sprintf("--max-count=%d", count),
+		"--date=short",
+		"--format=%H%x1f%an%x1f%ad%x1f%s%x1e",
+	)
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits yet") {
+			return []Commit{}, nil
+		}
+		return nil, err
+	}
+	return parseLog(out), nil
+}
+
+// CommitFiles lists every path changed by the given commit, equivalent to
+// `git diff-tree --no-commit-id --name-status <hash>`. The --root flag makes
+// it work for the root commit too, listing all of its files as added.
+func CommitFiles(hash string) ([]FileChange, error) {
+	out, err := runGit("diff-tree", "--root", "--no-commit-id", "--name-status", "-z", "-r", "-M", hash)
+	if err != nil {
+		return nil, err
+	}
+	return parseNameStatus(out), nil
+}
+
+// CommitFileDiff returns the raw unified diff text for path as changed by
+// the given commit, equivalent to `git show --format= <hash> -- <path>`.
+func CommitFileDiff(hash, path string) (string, error) {
+	out, err := runGit("show", "--format=", hash, "--", path)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
 // ChangedFiles lists every changed file in the working tree of the repo
 // rooted at the current working directory, covering both staged and
 // unstaged changes as well as untracked files, analogous to `git status`.
@@ -64,6 +112,72 @@ func runGit(args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
+}
+
+// parseLog parses the output of `git log` with fields separated by %x1f
+// (unit separator) and records terminated by %x1e (record separator).
+// Field order: hash, author, date, subject.
+func parseLog(out []byte) []Commit {
+	commits := []Commit{}
+	for _, record := range strings.Split(string(out), "\x1e") {
+		fields := strings.Split(strings.TrimSpace(record), "\x1f")
+		if len(fields) != 4 {
+			continue
+		}
+		commits = append(commits, Commit{
+			Hash:    fields[0],
+			Author:  fields[1],
+			Date:    fields[2],
+			Subject: fields[3],
+		})
+	}
+	return commits
+}
+
+// parseNameStatus parses the NUL-delimited output of
+// `git diff-tree --name-status -z`. Each record is a status token ("M",
+// "A", "D", "R100", ...) followed by one path, or two paths (original then
+// current) for renames and copies.
+func parseNameStatus(out []byte) []FileChange {
+	tokens := strings.Split(string(out), "\x00")
+	changes := []FileChange{}
+	for i := 0; i < len(tokens); {
+		status := tokens[i]
+		i++
+		if status == "" {
+			continue
+		}
+		if status[0] == 'R' || status[0] == 'C' {
+			if i+1 >= len(tokens) {
+				break
+			}
+			changes = append(changes, FileChange{Path: tokens[i+1], OrigPath: tokens[i], Type: Renamed})
+			i += 2
+			continue
+		}
+		if i >= len(tokens) {
+			break
+		}
+		changes = append(changes, FileChange{Path: tokens[i], Type: classifyStatus(status[0])})
+		i++
+	}
+	return changes
+}
+
+// classifyStatus maps a single-letter status from `git diff-tree
+// --name-status` to a ChangeType, in order of precedence: renamed, deleted,
+// added, modified.
+func classifyStatus(status byte) ChangeType {
+	switch status {
+	case 'R', 'C':
+		return Renamed
+	case 'D':
+		return Deleted
+	case 'A':
+		return Added
+	default:
+		return Modified
+	}
 }
 
 // parsePorcelain parses the NUL-delimited output of `git status --porcelain=v1 -z`.

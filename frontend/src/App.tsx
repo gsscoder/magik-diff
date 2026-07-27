@@ -1,28 +1,51 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import './App.css';
 import {
     APIKeyUsedFallback,
     ChangedFiles,
+    CommitFileDiff,
+    CommitFiles,
     ExplainFile,
     FileDiff,
     GetConfig,
     HasAPIKey,
+    RecentCommits,
     SaveConfig,
     SetAPIKey,
 } from "../wailsjs/go/main/App";
 import {config, gitdiff} from "../wailsjs/go/models";
 
-const typeLabels: Record<string, string> = {
-    Modified: "M",
-    Added: "A",
-    Deleted: "D",
-    Renamed: "R",
+type RailMode = "changes" | "history";
+
+const COMMIT_PAGE_SIZE = 200;
+
+interface FileStatus {
+    glyph: string;
+    label: string;
+    className: string;
+}
+
+// Keys match the lowercase ChangeType values serialized by the Go backend.
+const statusStyles: Record<string, FileStatus> = {
+    modified: {glyph: "●", label: "Modified", className: "status-modified"},
+    added: {glyph: "+", label: "Added", className: "status-added"},
+    deleted: {glyph: "−", label: "Deleted", className: "status-deleted"},
+    renamed: {glyph: "→", label: "Renamed", className: "status-renamed"},
 };
 
+const fallbackStatus: FileStatus = {glyph: "?", label: "Changed", className: ""};
+
 function App() {
+    const [mode, setMode] = useState<RailMode>("changes");
     const [files, setFiles] = useState<gitdiff.FileChange[]>([]);
     const [selectedPath, setSelectedPath] = useState<string | null>(null);
     const [diffText, setDiffText] = useState<string>("");
+
+    const [commits, setCommits] = useState<gitdiff.Commit[]>([]);
+    const [commitsExhausted, setCommitsExhausted] = useState(false);
+    const [selectedCommit, setSelectedCommit] = useState<gitdiff.Commit | null>(null);
+    const [commitFiles, setCommitFiles] = useState<gitdiff.FileChange[]>([]);
+    const loadingCommits = useRef(false);
 
     const [cfg, setCfg] = useState<config.Config>(new config.Config());
     const [hasKey, setHasKey] = useState(false);
@@ -51,13 +74,79 @@ function App() {
     function selectFile(path: string) {
         setSelectedPath(path);
         setDiffText("");
-        FileDiff(path).then(setDiffText);
+        if (mode === "history" && selectedCommit) {
+            CommitFileDiff(selectedCommit.Hash, path).then(setDiffText);
+        } else {
+            FileDiff(path).then(setDiffText);
+        }
         setExplanation("");
         setExplainError("");
     }
 
+    function loadCommits() {
+        if (loadingCommits.current || commitsExhausted) {
+            return;
+        }
+        loadingCommits.current = true;
+        RecentCommits(commits.length, COMMIT_PAGE_SIZE)
+            .then((batch) => {
+                const page = batch ?? [];
+                setCommits((prev) => [...prev, ...page]);
+                if (page.length < COMMIT_PAGE_SIZE) {
+                    setCommitsExhausted(true);
+                }
+            })
+            .finally(() => {
+                loadingCommits.current = false;
+            });
+    }
+
+    function switchMode(next: RailMode) {
+        if (next === mode) {
+            return;
+        }
+        setMode(next);
+        setSelectedPath(null);
+        setDiffText("");
+        setExplanation("");
+        setExplainError("");
+        setSelectedCommit(null);
+        setCommitFiles([]);
+        if (next === "history" && commits.length === 0) {
+            loadCommits();
+        }
+    }
+
+    function selectCommit(commit: gitdiff.Commit) {
+        setSelectedCommit(commit);
+        setSelectedPath(null);
+        setDiffText("");
+        setExplanation("");
+        setExplainError("");
+        CommitFiles(commit.Hash).then((f) => setCommitFiles(f ?? []));
+    }
+
+    function backToCommits() {
+        setSelectedCommit(null);
+        setCommitFiles([]);
+        setSelectedPath(null);
+        setDiffText("");
+        setExplanation("");
+        setExplainError("");
+    }
+
+    function handleRailScroll(e: React.UIEvent<HTMLDivElement>) {
+        if (mode !== "history" || selectedCommit) {
+            return;
+        }
+        const el = e.currentTarget;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) {
+            loadCommits();
+        }
+    }
+
     function explain() {
-        if (!selectedPath) {
+        if (!selectedPath || mode !== "changes") {
             return;
         }
         setExplaining(true);
@@ -78,6 +167,28 @@ function App() {
         checkReadiness();
     }
 
+    function renderFileList(items: gitdiff.FileChange[]) {
+        return (
+            <ul className="file-list">
+                {items.map((file) => {
+                    const status = statusStyles[file.Type] ?? fallbackStatus;
+                    return (
+                        <li
+                            key={file.Path}
+                            className={file.Path === selectedPath ? "file-item selected" : "file-item"}
+                            onClick={() => selectFile(file.Path)}
+                        >
+                            <span className={`file-type ${status.className}`} title={status.label}>
+                                {status.glyph}
+                            </span>
+                            <span className="file-path">{file.Path}</span>
+                        </li>
+                    );
+                })}
+            </ul>
+        );
+    }
+
     return (
         <div id="App-root">
             {!ready && !bannerDismissed && (
@@ -92,19 +203,46 @@ function App() {
                 </div>
             )}
             <div id="App">
-                <div className="rail">
-                    <ul className="file-list">
-                        {files.map((file) => (
-                            <li
-                                key={file.Path}
-                                className={file.Path === selectedPath ? "file-item selected" : "file-item"}
-                                onClick={() => selectFile(file.Path)}
-                            >
-                                <span className="file-type">{typeLabels[file.Type] ?? file.Type}</span>
-                                <span className="file-path">{file.Path}</span>
-                            </li>
-                        ))}
-                    </ul>
+                <div className="rail" onScroll={handleRailScroll}>
+                    <div className="rail-tabs">
+                        <button
+                            className={mode === "changes" ? "rail-tab selected" : "rail-tab"}
+                            onClick={() => switchMode("changes")}
+                        >
+                            Changes
+                        </button>
+                        <button
+                            className={mode === "history" ? "rail-tab selected" : "rail-tab"}
+                            onClick={() => switchMode("history")}
+                        >
+                            History
+                        </button>
+                    </div>
+                    {mode === "changes" && renderFileList(files)}
+                    {mode === "history" && !selectedCommit && (
+                        <ul className="file-list">
+                            {commits.map((commit) => (
+                                <li
+                                    key={commit.Hash}
+                                    className="commit-item"
+                                    onClick={() => selectCommit(commit)}
+                                >
+                                    <span className="commit-subject">{commit.Subject}</span>
+                                    <span className="commit-meta">
+                                        {commit.Author} · {commit.Date} · {commit.Hash.slice(0, 7)}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    {mode === "history" && selectedCommit && (
+                        <>
+                            <button className="rail-back" onClick={backToCommits}>
+                                ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
+                            </button>
+                            {renderFileList(commitFiles)}
+                        </>
+                    )}
                 </div>
                 <div className="diff-pane">
                     <pre>{diffText}</pre>
@@ -113,7 +251,8 @@ function App() {
                     <div className="explanation-header">
                         <button
                             className="explain-button"
-                            disabled={!ready || !selectedPath || explaining}
+                            disabled={!ready || mode !== "changes" || !selectedPath || explaining}
+                            title={mode !== "changes" ? "Explain works on working-tree changes only" : undefined}
                             onClick={explain}
                         >
                             {explaining ? "Explaining…" : "Explain"}
@@ -122,7 +261,10 @@ function App() {
                     {!selectedPath && (
                         <p className="placeholder">Select a file to see its explanation</p>
                     )}
-                    {selectedPath && !explaining && !explanation && !explainError && (
+                    {selectedPath && mode === "history" && (
+                        <p className="placeholder">Explain works on working-tree changes only</p>
+                    )}
+                    {selectedPath && mode === "changes" && !explaining && !explanation && !explainError && (
                         <p className="placeholder">Click Explain to see an explanation of this diff</p>
                     )}
                     {explaining && (
