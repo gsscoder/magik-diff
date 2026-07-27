@@ -77,10 +77,10 @@ func TestParse_ModifiedFile(t *testing.T) {
 	}
 
 	want := []Line{
-		{Type: Context, Content: "unchanged line"},
-		{Type: Removed, Content: "old line"},
-		{Type: Added, Content: "new line"},
-		{Type: Context, Content: "other unchanged"},
+		{Type: Context, Content: "unchanged line", OldNum: 1, NewNum: 1},
+		{Type: Removed, Content: "old line", OldNum: 2, Highlight: Span{Start: 0, End: 3}},
+		{Type: Added, Content: "new line", NewNum: 2, Highlight: Span{Start: 0, End: 3}},
+		{Type: Context, Content: "other unchanged", OldNum: 3, NewNum: 3},
 	}
 	if len(hunk.Lines) != len(want) {
 		t.Fatalf("len(Lines) = %d, want %d; got %+v", len(hunk.Lines), len(want), hunk.Lines)
@@ -174,9 +174,9 @@ func TestParse_NoTrailingNewline(t *testing.T) {
 	}
 
 	want := []Line{
-		{Type: Removed, Content: "line one"},
-		{Type: Added, Content: "line one changed"},
-		{Type: Context, Content: "line two"},
+		{Type: Removed, Content: "line one", OldNum: 1},
+		{Type: Added, Content: "line one changed", NewNum: 1, Highlight: Span{Start: 8, End: 16}},
+		{Type: Context, Content: "line two", OldNum: 2, NewNum: 2},
 	}
 	got := fd.Hunks[0].Lines
 	if len(got) != len(want) {
@@ -202,5 +202,74 @@ func TestParse_NoDiff(t *testing.T) {
 func TestParse_Malformed(t *testing.T) {
 	if _, err := Parse("this is not a diff\njust some text\n"); err == nil {
 		t.Fatal("Parse: expected an error for malformed input, got nil")
+	}
+}
+
+func TestParse_LineNumbersResumeAcrossHunks(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "file.txt", "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\n")
+	runGitIn(t, dir, "add", "file.txt")
+	runGitIn(t, dir, "commit", "-q", "-m", "initial")
+
+	writeFile(t, dir, "file.txt", "l1\nL2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nL12\nl13\nl14\n")
+
+	raw := gitDiffIn(t, dir, "--", "file.txt")
+
+	fd, err := Parse(raw)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(fd.Hunks) != 2 {
+		t.Fatalf("len(Hunks) = %d, want 2", len(fd.Hunks))
+	}
+	second := fd.Hunks[1]
+	if second.Lines[0].OldNum != 9 || second.Lines[0].NewNum != 9 {
+		t.Errorf("second hunk first line = %+v, want OldNum 9, NewNum 9", second.Lines[0])
+	}
+	var removed, added Line
+	for _, l := range second.Lines {
+		switch l.Type {
+		case Removed:
+			removed = l
+		case Added:
+			added = l
+		}
+	}
+	if removed.OldNum != 12 || added.NewNum != 12 {
+		t.Errorf("changed pair = removed %+v, added %+v, want both at line 12", removed, added)
+	}
+}
+
+func TestAddIntralineHighlights_PureInsertionGetsNoSpan(t *testing.T) {
+	lines := []Line{
+		{Type: Context, Content: "before", OldNum: 1, NewNum: 1},
+		{Type: Added, Content: "inserted", NewNum: 2},
+		{Type: Context, Content: "after", OldNum: 2, NewNum: 3},
+	}
+	addIntralineHighlights(lines)
+	if lines[1].Highlight != (Span{}) {
+		t.Errorf("pure insertion Highlight = %+v, want zero Span", lines[1].Highlight)
+	}
+}
+
+func TestChangedSpans(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		old, new         string
+		wantOld, wantNew Span
+	}{
+		{"identical", "same", "same", Span{}, Span{}},
+		{"prefix kept", "line one", "line one changed", Span{}, Span{8, 16}},
+		{"suffix kept", "old line", "new line", Span{0, 3}, Span{0, 3}},
+		{"middle", "a x b", "a y b", Span{2, 3}, Span{2, 3}},
+		{"unicode", "héllo wörld", "héllo welt", Span{7, 11}, Span{7, 10}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gotOld, gotNew := changedSpans(tc.old, tc.new)
+			if gotOld != tc.wantOld || gotNew != tc.wantNew {
+				t.Errorf("changedSpans(%q, %q) = (%v, %v), want (%v, %v)",
+					tc.old, tc.new, gotOld, gotNew, tc.wantOld, tc.wantNew)
+			}
+		})
 	}
 }

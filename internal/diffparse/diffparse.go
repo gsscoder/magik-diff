@@ -6,6 +6,7 @@ package diffparse
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -18,11 +19,25 @@ const (
 	Removed LineType = "removed"
 )
 
+// Span is a half-open rune range [Start, End) within a Line's Content.
+// The zero value (Start == End) means "no span".
+type Span struct {
+	Start int
+	End   int
+}
+
 // Line is one line of a hunk's body, with its leading +/-/space marker
-// stripped off.
+// stripped off. OldNum and NewNum are the 1-based line numbers in the old
+// and new revision of the file; OldNum is 0 for added lines, NewNum is 0
+// for removed lines. Highlight marks the exact changed substring for
+// word-level intraline highlighting; it is the zero Span when the line has
+// no paired counterpart or nothing differs inside it.
 type Line struct {
-	Type    LineType
-	Content string
+	Type      LineType
+	Content   string
+	OldNum    int
+	NewNum    int
+	Highlight Span
 }
 
 // Hunk is one `@@ -l,s +l,s @@` section of a diff, with its header line and
@@ -50,9 +65,10 @@ var renameTo = regexp.MustCompile(`^rename to (.*)$`)
 // emitted instead of hunks when the file is detected as binary.
 var binaryFiles = regexp.MustCompile(`^Binary files a/(.*) and b/(.*) differ$`)
 
-// hunkHeader matches an "@@ -l,s +l,s @@" line, allowing for the optional
-// trailing function-context text git appends after the closing "@@".
-var hunkHeader = regexp.MustCompile(`^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@`)
+// hunkHeader matches an "@@ -l,s +l,s @@" line, capturing the old and new
+// start lines and allowing for the optional trailing function-context text
+// git appends after the closing "@@".
+var hunkHeader = regexp.MustCompile(`^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@`)
 
 // Parse parses raw unified diff text for a single file, as returned by
 // gitdiff.FileDiff, into a FileDiff.
@@ -77,9 +93,13 @@ func Parse(raw string) (FileDiff, error) {
 	fd := FileDiff{Path: m[2]}
 
 	var hunk *Hunk
+	oldNum, newNum := 0, 0
 	for _, line := range lines[1:] {
 		switch {
 		case hunkHeader.MatchString(line):
+			m := hunkHeader.FindStringSubmatch(line)
+			oldNum, _ = strconv.Atoi(m[1])
+			newNum, _ = strconv.Atoi(m[2])
 			fd.Hunks = append(fd.Hunks, Hunk{Header: line})
 			hunk = &fd.Hunks[len(fd.Hunks)-1]
 
@@ -87,13 +107,17 @@ func Parse(raw string) (FileDiff, error) {
 			// "\ No newline at end of file" - not a content line, ignore.
 
 		case hunk != nil && strings.HasPrefix(line, "+"):
-			hunk.Lines = append(hunk.Lines, Line{Type: Added, Content: line[1:]})
+			hunk.Lines = append(hunk.Lines, Line{Type: Added, Content: line[1:], NewNum: newNum})
+			newNum++
 
 		case hunk != nil && strings.HasPrefix(line, "-"):
-			hunk.Lines = append(hunk.Lines, Line{Type: Removed, Content: line[1:]})
+			hunk.Lines = append(hunk.Lines, Line{Type: Removed, Content: line[1:], OldNum: oldNum})
+			oldNum++
 
 		case hunk != nil && strings.HasPrefix(line, " "):
-			hunk.Lines = append(hunk.Lines, Line{Type: Context, Content: line[1:]})
+			hunk.Lines = append(hunk.Lines, Line{Type: Context, Content: line[1:], OldNum: oldNum, NewNum: newNum})
+			oldNum++
+			newNum++
 
 		case hunk == nil:
 			// Still in the per-file preamble (mode/index/rename/binary
@@ -109,5 +133,63 @@ func Parse(raw string) (FileDiff, error) {
 		}
 	}
 
+	for i := range fd.Hunks {
+		addIntralineHighlights(fd.Hunks[i].Lines)
+	}
+
 	return fd, nil
+}
+
+// addIntralineHighlights sets the Highlight span of every removed/added
+// line that has a paired counterpart. Pairing follows git's own emission
+// order: a maximal run of removed lines immediately followed by a run of
+// added lines forms a group, and lines are paired by position within the
+// group. Unpaired lines (pure deletions, pure insertions, extra lines in
+// the longer run) keep the zero Span.
+func addIntralineHighlights(lines []Line) {
+	i := 0
+	for i < len(lines) {
+		if lines[i].Type != Removed {
+			i++
+			continue
+		}
+		rStart := i
+		for i < len(lines) && lines[i].Type == Removed {
+			i++
+		}
+		aStart := i
+		for i < len(lines) && lines[i].Type == Added {
+			i++
+		}
+		removed, added := lines[rStart:aStart], lines[aStart:i]
+		for k := 0; k < len(removed) && k < len(added); k++ {
+			oldSpan, newSpan := changedSpans(removed[k].Content, added[k].Content)
+			removed[k].Highlight = oldSpan
+			added[k].Highlight = newSpan
+		}
+	}
+}
+
+// changedSpans locates the changed substring in each of an old/new line
+// pair by trimming their common prefix and suffix (runes), returning the
+// remaining middle range of each. An empty result (identical lines, or one
+// line fully contained in the other) is normalized to the zero Span.
+func changedSpans(old, new string) (Span, Span) {
+	o, n := []rune(old), []rune(new)
+	prefix := 0
+	for prefix < len(o) && prefix < len(n) && o[prefix] == n[prefix] {
+		prefix++
+	}
+	suffix := 0
+	for suffix < len(o)-prefix && suffix < len(n)-prefix && o[len(o)-1-suffix] == n[len(n)-1-suffix] {
+		suffix++
+	}
+	oldSpan, newSpan := Span{prefix, len(o) - suffix}, Span{prefix, len(n) - suffix}
+	if oldSpan.Start == oldSpan.End {
+		oldSpan = Span{}
+	}
+	if newSpan.Start == newSpan.End {
+		newSpan = Span{}
+	}
+	return oldSpan, newSpan
 }

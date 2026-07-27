@@ -13,7 +13,7 @@ import {
     SaveConfig,
     SetAPIKey,
 } from "../wailsjs/go/main/App";
-import {config, gitdiff} from "../wailsjs/go/models";
+import {config, diffparse, gitdiff} from "../wailsjs/go/models";
 
 type RailMode = "changes" | "history";
 
@@ -39,7 +39,7 @@ function App() {
     const [mode, setMode] = useState<RailMode>("changes");
     const [files, setFiles] = useState<gitdiff.FileChange[]>([]);
     const [selectedPath, setSelectedPath] = useState<string | null>(null);
-    const [diffText, setDiffText] = useState<string>("");
+    const [parsedDiff, setParsedDiff] = useState<diffparse.FileDiff | null>(null);
 
     const [commits, setCommits] = useState<gitdiff.Commit[]>([]);
     const [commitsExhausted, setCommitsExhausted] = useState(false);
@@ -73,11 +73,11 @@ function App() {
 
     function selectFile(path: string) {
         setSelectedPath(path);
-        setDiffText("");
+        setParsedDiff(null);
         if (mode === "history" && selectedCommit) {
-            CommitFileDiff(selectedCommit.Hash, path).then(setDiffText);
+            CommitFileDiff(selectedCommit.Hash, path).then(setParsedDiff);
         } else {
-            FileDiff(path).then(setDiffText);
+            FileDiff(path).then(setParsedDiff);
         }
         setExplanation("");
         setExplainError("");
@@ -107,7 +107,7 @@ function App() {
         }
         setMode(next);
         setSelectedPath(null);
-        setDiffText("");
+        setParsedDiff(null);
         setExplanation("");
         setExplainError("");
         setSelectedCommit(null);
@@ -120,7 +120,7 @@ function App() {
     function selectCommit(commit: gitdiff.Commit) {
         setSelectedCommit(commit);
         setSelectedPath(null);
-        setDiffText("");
+        setParsedDiff(null);
         setExplanation("");
         setExplainError("");
         CommitFiles(commit.Hash).then((f) => setCommitFiles(f ?? []));
@@ -130,7 +130,7 @@ function App() {
         setSelectedCommit(null);
         setCommitFiles([]);
         setSelectedPath(null);
-        setDiffText("");
+        setParsedDiff(null);
         setExplanation("");
         setExplainError("");
     }
@@ -165,6 +165,21 @@ function App() {
     function closeConfigDialog() {
         setConfigDialogOpen(false);
         checkReadiness();
+    }
+
+    function renderLineContent(line: diffparse.Line) {
+        const hl = line.Highlight;
+        if (hl.End <= hl.Start) {
+            return line.Content;
+        }
+        const chars = [...line.Content];
+        return (
+            <>
+                {chars.slice(0, hl.Start).join("")}
+                <span className="diff-hl">{chars.slice(hl.Start, hl.End).join("")}</span>
+                {chars.slice(hl.End).join("")}
+            </>
+        );
     }
 
     function renderFileList(items: gitdiff.FileChange[]) {
@@ -245,7 +260,30 @@ function App() {
                     )}
                 </div>
                 <div className="diff-pane">
-                    <pre>{diffText}</pre>
+                    {!parsedDiff && (
+                        <p className="placeholder">Select a file to see its diff</p>
+                    )}
+                    {parsedDiff && parsedDiff.Path !== "" && (
+                        <div className="diff-file-header">{parsedDiff.Path}</div>
+                    )}
+                    {parsedDiff && (parsedDiff.Hunks ?? []).length === 0 && (
+                        <p className="placeholder">No textual diff to display (untracked, binary, or rename-only)</p>
+                    )}
+                    {parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
+                        <div key={hi} className="diff-hunk">
+                            <div className="diff-hunk-header">{hunk.Header}</div>
+                            {(hunk.Lines ?? []).map((line, li) => (
+                                <div key={li} className={`diff-line ${line.Type}`}>
+                                    <span className="diff-gutter">{line.OldNum > 0 ? line.OldNum : ""}</span>
+                                    <span className="diff-gutter">{line.NewNum > 0 ? line.NewNum : ""}</span>
+                                    <span className="diff-sign">
+                                        {line.Type === "added" ? "+" : line.Type === "removed" ? "-" : " "}
+                                    </span>
+                                    <span className="diff-content">{renderLineContent(line)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
                 </div>
                 <div className="explanation-pane">
                     <div className="explanation-header">

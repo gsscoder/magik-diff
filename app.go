@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"mdiff/internal/config"
+	"mdiff/internal/diffparse"
 	"mdiff/internal/gitdiff"
 	"mdiff/internal/llm"
 )
@@ -36,9 +37,13 @@ func (a *App) ChangedFiles() ([]gitdiff.FileChange, error) {
 	return gitdiff.ChangedFiles()
 }
 
-// FileDiff returns the raw unified diff text for path in the working tree.
-func (a *App) FileDiff(path string) (string, error) {
-	return gitdiff.FileDiff(path)
+// FileDiff returns the parsed unified diff for path in the working tree.
+func (a *App) FileDiff(path string) (diffparse.FileDiff, error) {
+	raw, err := gitdiff.FileDiff(path)
+	if err != nil {
+		return diffparse.FileDiff{}, err
+	}
+	return diffparse.Parse(raw)
 }
 
 // RecentCommits returns up to count commits from the repository history,
@@ -52,10 +57,14 @@ func (a *App) CommitFiles(hash string) ([]gitdiff.FileChange, error) {
 	return gitdiff.CommitFiles(hash)
 }
 
-// CommitFileDiff returns the raw unified diff text for path as changed by
+// CommitFileDiff returns the parsed unified diff for path as changed by
 // the given commit.
-func (a *App) CommitFileDiff(hash, path string) (string, error) {
-	return gitdiff.CommitFileDiff(hash, path)
+func (a *App) CommitFileDiff(hash, path string) (diffparse.FileDiff, error) {
+	raw, err := gitdiff.CommitFileDiff(hash, path)
+	if err != nil {
+		return diffparse.FileDiff{}, err
+	}
+	return diffparse.Parse(raw)
 }
 
 // GetConfig returns the current non-secret application settings.

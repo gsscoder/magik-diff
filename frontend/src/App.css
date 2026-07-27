@@ -212,13 +212,76 @@
 .diff-pane {
     overflow-y: auto;
     border-right: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: monospace;
+    font-size: 0.85em;
 }
 
-.diff-pane pre {
-    margin: 0;
+.diff-pane .placeholder {
+    color: rgba(255, 255, 255, 0.5);
     padding: 10px;
+}
+
+.diff-file-header {
+    padding: 6px 10px;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.diff-hunk-header {
+    padding: 4px 10px;
+    color: #539bf5;
+    background-color: rgba(83, 155, 245, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.diff-line {
+    display: flex;
+}
+
+.diff-gutter {
+    width: 3em;
+    flex-shrink: 0;
+    padding-right: 6px;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.35);
+    user-select: none;
+}
+
+.diff-sign {
+    width: 1.2em;
+    flex-shrink: 0;
+    text-align: center;
+    user-select: none;
+}
+
+.diff-content {
+    flex: 1;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.diff-line.added {
+    background-color: rgba(63, 185, 80, 0.12);
+}
+
+.diff-line.added .diff-sign {
+    color: #3fb950;
+}
+
+.diff-line.removed {
+    background-color: rgba(248, 81, 73, 0.12);
+}
+
+.diff-line.removed .diff-sign {
+    color: #f85149;
+}
+
+.diff-line.added .diff-hl {
+    background-color: rgba(63, 185, 80, 0.4);
+}
+
+.diff-line.removed .diff-hl {
+    background-color: rgba(248, 81, 73, 0.4);
 }
 
 .explanation-pane {
