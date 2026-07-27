@@ -126,7 +126,7 @@ Status: DEFAULT unless noted otherwise. Proposed unilaterally, user proceeded. S
 - History rail, top tab "History": loads the most recent 200 commits via `git log`, with load-more-on-scroll for older history rather than loading full history upfront. Note: this 200 figure is pinned as a specific default, unlike the byte cap in section 7, which is left OPEN. Both are equally arbitrary magic numbers; only this one was actually proposed and not vetoed. Do not infer that the byte cap should also default to some derived value just because this one is pinned.
 - Single human-facing design doc, `DESIGN.md`, separate from this AI-only file. User explicitly did not want documentation scattered across multiple files.
 
-Local server security. Status: OPEN as of the Wails decision (section 1). Was DEFAULT-tier-but-treat-as-non-negotiable under the prior `embed.FS` model; do not carry it forward as still-settled and do not silently drop it either.
+Local server security. Status: LOCKED (empirically resolved, not a judgment call).
 
 Original mitigation, designed for the superseded model (Go binary runs a `net/http` server, user's regular browser opens a tab pointed at localhost):
 - Server binds to `127.0.0.1` only, never `0.0.0.0`.
@@ -134,7 +134,11 @@ Original mitigation, designed for the superseded model (Go binary runs a `net/ht
 - Every request must carry a random per-launch token embedded in the URL the browser is opened with. Every handler validates it.
 - Rationale under that model: without the token, any other web page open in the user's browser could POST to `http://127.0.0.1:port/...` from client-side JS and silently spend the user's configured LLM API budget. A same-origin-policy-adjacent localhost CSRF-like attack. Binding to loopback alone does not prevent this since any tab can still reach `127.0.0.1`. The token was the actual mitigation; the loopback bind was defense-in-depth against network-level exposure. This was a real vulnerability class, not paranoia.
 
-Open question under Wails: Wails' Go↔JS communication is a native binding/IPC layer inside its own dedicated webview process (exported Go struct methods bound to JS, plus an events bus), not necessarily an open TCP port reachable by other browser tabs the way a `net/http` server was. Whether that transport still exposes a localhost-reachable-by-other-tabs (or otherwise cross-process-reachable) attack surface, and whether the token mitigation above is still required in its current form, some reduced form, or not at all, is unresolved. Confirm this with the user and verify against Wails' actual IPC implementation before implementing any of it. Do not assume the token is still needed as-is, and do not assume it is safe to drop.
+Finding: empirically tested, not theorized. Built the real `mdiff.exe` via `wails build`, launched it, inspected `Get-NetTCPConnection -State Listen` before and after launch for both `mdiff.exe` and its child process `msedgewebview2.exe` (Wails on Windows spawns a separate WebView2 host process as a child). Result: zero new listening TCP ports for either process. The Go↔JS/webview channel is a named pipe (visible in the child process command line as `--mojo-named-platform-channel-pipe=<id>`), not a TCP socket.
+
+Conclusion: the original localhost-CSRF token mitigation (127.0.0.1 bind, random port, per-launch URL token), designed for a `net/http`-server-plus-browser-tab model, is NOT NEEDED under Wails' actual transport. There is no listening port for another tab or process to reach. Do not carry that mitigation into implementation.
+
+Caveat, do not overclaim: verified on Windows only, the test environment. macOS/Linux use different WebView2-equivalent backends (WebKit-based) and their IPC transport was not independently verified. If a future agent implements on macOS/Linux, spot-check the same "no listening port" assumption there rather than blindly assuming it is identical — though there is no specific reason to expect it differs, since Wails' architecture is transport-abstracted across platforms.
 
 ## 9. Testing approach
 Status: decision made, not yet executed.
@@ -156,7 +160,6 @@ Do not build unprompted. Do not treat absence as a bug.
 - Byte cap value for the cost guard, section 7. No number pinned anywhere.
 - Rationale for no-markdown-rendering, section 8. Decision itself is DEFAULT and stands; the why is unrecoverable and unconfirmed.
 - Rationale for no-filesystem-watcher, section 8. Decision itself is DEFAULT and stands; the why is unrecoverable and unconfirmed.
-- Local server security under Wails, section 8. Whether Wails' Go↔JS binding transport exposes a localhost-reachable-by-other-tabs attack surface, and whether the prior per-launch-token mitigation is still required in its current form, is unresolved as of the section 1 platform revision.
 
 ## Cross-reference notes for the implementing agent
 - Section 4's word-level trim algorithm and section 7's token estimate each appear once, in their most relevant section. Do not re-derive separate rationale for them if referenced from section 8; the section 8 entries point back here intentionally.
