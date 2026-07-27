@@ -1,26 +1,66 @@
+:root {
+    color-scheme: dark;
+    --bg: #0f141a;
+    --surface: #161c24;
+    --surface-hover: #1c232d;
+    --border: #2a313b;
+    --text: #d7dde4;
+    --text-muted: #7d8794;
+    --accent: #539bf5;
+    --added: #3fb950;
+    --removed: #f85149;
+    --modified: #d29922;
+    --renamed: #a371f7;
+    --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
+}
+
 html {
-    background-color: rgba(27, 38, 54, 1);
-    text-align: center;
-    color: white;
+    background-color: var(--bg);
+    color: var(--text);
 }
 
 body {
     margin: 0;
-    color: white;
-    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
-}
-
-@font-face {
-    font-family: "Nunito";
-    font-style: normal;
-    font-weight: 400;
-    src: local(""),
-    url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+    font-family: var(--font-ui);
+    font-size: 13px;
+    line-height: 1.45;
 }
 
 #app {
     height: 100vh;
-    text-align: center;
+}
+
+button {
+    font: inherit;
+    color: var(--text);
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 12px;
+    cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+    border-color: var(--text-muted);
+}
+
+button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+input {
+    font: inherit;
+    color: var(--text);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    outline: none;
+}
+
+input:focus {
+    border-color: var(--accent);
 }

@@ -12,42 +12,45 @@
     text-align: left;
 }
 
+/* Readiness banner */
+
 .readiness-banner {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 14px;
-    background-color: #7a4b00;
-    color: #fff;
+    padding: 6px 12px;
+    background-color: rgba(210, 153, 34, 0.1);
+    border-bottom: 1px solid var(--border);
+    color: var(--modified);
+    font-size: 12px;
     flex-shrink: 0;
-}
-
-.readiness-banner-icon {
-    font-size: 1.1em;
 }
 
 .readiness-banner-text {
     flex: 1;
+    color: var(--text);
 }
 
 .readiness-banner-action {
     background: none;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 4px;
-    color: #fff;
-    padding: 4px 10px;
-    cursor: pointer;
+    border: 1px solid rgba(210, 153, 34, 0.4);
+    color: var(--modified);
+    padding: 2px 8px;
+    font-size: 12px;
     flex-shrink: 0;
 }
 
 .readiness-banner-action:hover {
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(210, 153, 34, 0.15);
+    border-color: var(--modified);
 }
+
+/* Config dialog */
 
 .config-overlay {
     position: fixed;
     inset: 0;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -55,11 +58,11 @@
 }
 
 .config-dialog {
-    background-color: #242424;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 6px;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
     padding: 20px;
-    width: 360px;
+    width: 380px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -68,94 +71,57 @@
 
 .config-dialog h2 {
     margin: 0;
+    font-size: 14px;
+    font-weight: 600;
 }
 
 .config-field {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 0.9em;
-}
-
-.config-field input {
-    font-size: 1em;
-    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--text-muted);
 }
 
 .config-dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 8px;
 }
+
+/* Left rail */
 
 .rail {
     overflow-y: auto;
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
+    border-right: 1px solid var(--border);
 }
 
 .rail-tabs {
     display: flex;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid var(--border);
 }
 
 .rail-tab {
     flex: 1;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.6);
+    border-radius: 0;
+    color: var(--text-muted);
     padding: 8px 0;
-    cursor: pointer;
-    font-size: 1em;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.rail-tab:hover:not(.selected) {
+    background: none;
+    color: var(--text);
 }
 
 .rail-tab.selected {
-    color: #fff;
-    box-shadow: inset 0 -2px 0 #fff;
-}
-
-.commit-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 6px 10px;
-    cursor: pointer;
-}
-
-.commit-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.commit-subject {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.commit-meta {
-    font-size: 0.8em;
-    color: rgba(255, 255, 255, 0.5);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.rail-back {
-    display: block;
-    width: 100%;
-    background: none;
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    color: rgba(255, 255, 255, 0.8);
-    padding: 6px 10px;
-    cursor: pointer;
-    text-align: left;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.rail-back:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .file-list {
@@ -167,16 +133,17 @@
 .file-item {
     display: flex;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     cursor: pointer;
 }
 
 .file-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--surface);
 }
 
 .file-item.selected {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--surface);
+    box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .file-type {
@@ -186,52 +153,101 @@
 }
 
 .status-modified {
-    color: #d29922;
+    color: var(--modified);
 }
 
 .status-added {
-    color: #3fb950;
+    color: var(--added);
     font-weight: bold;
 }
 
 .status-deleted {
-    color: #f85149;
+    color: var(--removed);
     font-weight: bold;
 }
 
 .status-renamed {
-    color: #a371f7;
+    color: var(--renamed);
 }
 
-.file-path {
+.commit-item {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.commit-item:hover {
+    background-color: var(--surface);
+}
+
+.commit-subject {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.commit-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-back {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 6px 10px;
+    font-size: 12px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rail-back:hover {
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+/* Diff pane */
+
 .diff-pane {
     overflow-y: auto;
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
-    font-family: monospace;
-    font-size: 0.85em;
+    border-right: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 12px;
 }
 
 .diff-pane .placeholder {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     padding: 10px;
+    font-family: var(--font-ui);
 }
 
 .diff-file-header {
     padding: 6px 10px;
-    font-weight: bold;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.diff-hunk + .diff-hunk {
+    border-top: 1px solid var(--border);
 }
 
 .diff-hunk-header {
-    padding: 4px 10px;
-    color: #539bf5;
-    background-color: rgba(83, 155, 245, 0.1);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 3px 10px;
+    color: var(--accent);
+    background-color: rgba(83, 155, 245, 0.08);
+    border-bottom: 1px solid var(--border);
 }
 
 .diff-line {
@@ -241,14 +257,15 @@
 .diff-gutter {
     width: 3em;
     flex-shrink: 0;
-    padding-right: 6px;
+    padding-right: 8px;
     text-align: right;
-    color: rgba(255, 255, 255, 0.35);
+    color: var(--text-muted);
+    background-color: rgba(255, 255, 255, 0.02);
     user-select: none;
 }
 
 .diff-sign {
-    width: 1.2em;
+    width: 1.4em;
     flex-shrink: 0;
     text-align: center;
     user-select: none;
@@ -261,32 +278,34 @@
 }
 
 .diff-line.added {
-    background-color: rgba(63, 185, 80, 0.12);
+    background-color: rgba(63, 185, 80, 0.1);
 }
 
 .diff-line.added .diff-sign {
-    color: #3fb950;
+    color: var(--added);
 }
 
 .diff-line.removed {
-    background-color: rgba(248, 81, 73, 0.12);
+    background-color: rgba(248, 81, 73, 0.1);
 }
 
 .diff-line.removed .diff-sign {
-    color: #f85149;
+    color: var(--removed);
 }
 
 .diff-line.added .diff-hl {
-    background-color: rgba(63, 185, 80, 0.4);
+    background-color: rgba(63, 185, 80, 0.35);
 }
 
 .diff-line.removed .diff-hl {
-    background-color: rgba(248, 81, 73, 0.4);
+    background-color: rgba(248, 81, 73, 0.35);
 }
+
+/* Explanation pane */
 
 .explanation-pane {
     overflow-y: auto;
-    padding: 10px;
+    padding: 12px;
 }
 
 .explanation-header {
@@ -295,15 +314,21 @@
     margin-bottom: 10px;
 }
 
-.explain-button:disabled {
-    opacity: 0.5;
-    cursor: default;
+.explain-button {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: none;
+}
+
+.explain-button:hover:not(:disabled) {
+    background-color: rgba(83, 155, 245, 0.1);
+    border-color: var(--accent);
 }
 
 .explanation-pane .placeholder {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .explanation-pane .explain-error {
-    color: #ff8a8a;
+    color: var(--removed);
 }
