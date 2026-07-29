@@ -199,8 +199,10 @@ func filePrompt(diff string) string {
 			"(e.g. one ignore-list entry, a formatting fix, a comment tweak) gets "+
 			"one short sentence, not a full breakdown. Only go longer when the "+
 			"change is genuinely substantial. No preamble, no restating the diff "+
-			"line by line, no generic best-practice commentary, no headings or "+
-			"lists, no summary at the end.\n\n%s",
+			"line by line, no generic best-practice commentary, light markdown "+
+			"like **bold** or inline `code` is fine if it genuinely helps but "+
+			"don't force headings, bullet lists, or heavy structure onto a "+
+			"short or simple explanation, no summary at the end.\n\n%s",
 		diff,
 	)
 }
@@ -221,8 +223,10 @@ func allChangesPrompt(diff string) string {
 			"or touches many unrelated concerns. If the changeset genuinely mixes "+
 			"multiple unrelated concerns, briefly flag that fact, but do not "+
 			"invent a multi-concern narrative for a changeset that is actually one "+
-			"coherent thing. No preamble, no headings, no bullet lists or per-file "+
-			"breakdown, no restating diff lines, no summary at the end.\n\n%s",
+			"coherent thing. No preamble, no restating diff lines, light markdown "+
+			"like **bold** or inline `code` is fine if it genuinely helps but "+
+			"don't force headings, bullet lists, or per-file breakdown onto a "+
+			"short or simple explanation, no summary at the end.\n\n%s",
 		diff,
 	)
 }

@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
+import ReactMarkdown from 'react-markdown';
 import './App.css';
 import {
     APIKeyUsedFallback,
@@ -59,8 +60,11 @@ function App() {
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
     const [explainedAll, setExplainedAll] = useState(false);
+    const [explanationExpanded, setExplanationExpanded] = useState(false);
 
     const [bannerDismissed, setBannerDismissed] = useState(false);
+
+    const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
@@ -68,6 +72,30 @@ function App() {
         ChangedFiles().then((f) => setFiles(f ?? []));
         checkReadiness();
     }, []);
+
+    useEffect(() => {
+        function handleKeyDown(e: KeyboardEvent) {
+            if (!(e.ctrlKey || e.metaKey)) {
+                return;
+            }
+            if (e.key === "=" || e.key === "+") {
+                e.preventDefault();
+                setZoom((z) => Math.min(1.8, Math.max(0.7, z + 0.1)));
+            } else if (e.key === "-") {
+                e.preventDefault();
+                setZoom((z) => Math.min(1.8, Math.max(0.7, z - 0.1)));
+            } else if (e.key === "0") {
+                e.preventDefault();
+                setZoom(1);
+            }
+        }
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem("mdiff-zoom", String(zoom));
+    }, [zoom]);
 
     function checkReadiness() {
         GetConfig().then(setCfg);
@@ -238,7 +266,7 @@ function App() {
     }
 
     return (
-        <div id="App-root">
+        <div id="App-root" style={{zoom}}>
             {!ready && !bannerDismissed && (
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
@@ -250,7 +278,7 @@ function App() {
                     <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
                 </div>
             )}
-            <div id="App">
+            <div id="App" className={explanationExpanded ? "explanation-expanded" : undefined}>
                 <div className="rail" onScroll={handleRailScroll}>
                     <div className="rail-tabs">
                         <button
@@ -321,6 +349,12 @@ function App() {
                 <div className="explanation-pane">
                     <div className="explanation-header">
                         <button
+                            className="explanation-toggle-button"
+                            onClick={() => setExplanationExpanded(!explanationExpanded)}
+                        >
+                            {explanationExpanded ? "⇤ Collapse" : "⇥ Expand"}
+                        </button>
+                        <button
                             className="explain-button"
                             disabled={!ready || !selectedPath || explaining}
                             onClick={explain}
@@ -353,9 +387,11 @@ function App() {
                     {explanation && explainedAll && (
                         <p className="explanation-scope-label">Whole changeset</p>
                     )}
-                    {explanation && explanation.split(/\n\n+/).map((paragraph, i) => (
-                        <p key={i}>{paragraph}</p>
-                    ))}
+                    {explanation && (
+                        <div className="markdown-body">
+                            <ReactMarkdown>{explanation}</ReactMarkdown>
+                        </div>
+                    )}
                 </div>
             </div>
             {configDialogOpen && (
