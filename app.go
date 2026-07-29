@@ -118,7 +118,13 @@ func (a *App) ExplainFile(path string) (string, error) {
 	}
 
 	prompt := fmt.Sprintf(
-		"Explain what changed in the following diff and why, in plain prose:\n\n%s",
+		"Explain what changed in the following diff and why, in plain prose. "+
+			"Be as terse as the change deserves: a trivial or mechanical change "+
+			"(e.g. one ignore-list entry, a formatting fix, a comment tweak) gets "+
+			"one short sentence, not a full breakdown. Only go longer when the "+
+			"change is genuinely substantial. No preamble, no restating the diff "+
+			"line by line, no generic best-practice commentary, no headings or "+
+			"lists, no summary at the end.\n\n%s",
 		diff,
 	)
 	return llm.Explain(cfg.BaseURL, cfg.Model, apiKey, prompt)
