@@ -311,6 +311,7 @@
 .explanation-header {
     display: flex;
     justify-content: flex-end;
+    gap: 8px;
     margin-bottom: 10px;
 }
 
@@ -325,10 +326,29 @@
     border-color: var(--accent);
 }
 
+.explain-all-button {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: none;
+}
+
+.explain-all-button:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
 .explanation-pane .placeholder {
     color: var(--text-muted);
 }
 
 .explanation-pane .explain-error {
     color: var(--removed);
+}
+
+.explanation-pane .explanation-scope-label {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
 }

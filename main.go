@@ -2,6 +2,8 @@ package main
 
 import (
 	"embed"
+	"fmt"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -15,9 +17,14 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
+	title := "Magik Diff"
+	if cwd, err := os.Getwd(); err == nil {
+		title = fmt.Sprintf("%s | Magik Diff", cwd)
+	}
+
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "mdiff",
+		Title:  title,
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{

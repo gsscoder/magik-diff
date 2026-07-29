@@ -5,6 +5,8 @@ import {
     ChangedFiles,
     CommitFileDiff,
     CommitFiles,
+    ExplainAllChanges,
+    ExplainAllCommitChanges,
     ExplainCommitFile,
     ExplainFile,
     FileDiff,
@@ -56,6 +58,7 @@ function App() {
     const [explanation, setExplanation] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
+    const [explainedAll, setExplainedAll] = useState(false);
 
     const [bannerDismissed, setBannerDismissed] = useState(false);
 
@@ -82,6 +85,7 @@ function App() {
         }
         setExplanation("");
         setExplainError("");
+        setExplainedAll(false);
     }
 
     function loadCommits() {
@@ -111,6 +115,7 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
+        setExplainedAll(false);
         setSelectedCommit(null);
         setCommitFiles([]);
         if (next === "history" && commits.length === 0) {
@@ -124,6 +129,7 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
+        setExplainedAll(false);
         CommitFiles(commit.Hash).then((f) => setCommitFiles(f ?? []));
     }
 
@@ -134,6 +140,7 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
+        setExplainedAll(false);
     }
 
     function handleRailScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -153,9 +160,31 @@ function App() {
         setExplaining(true);
         setExplanation("");
         setExplainError("");
+        setExplainedAll(false);
         const request = mode === "history" && selectedCommit
             ? ExplainCommitFile(selectedCommit.Hash, selectedPath)
             : ExplainFile(selectedPath);
+        request
+            .then(setExplanation)
+            .catch((err) => setExplainError(String(err)))
+            .finally(() => setExplaining(false));
+    }
+
+    function explainAll() {
+        if (mode === "history") {
+            if (!selectedCommit || commitFiles.length === 0) {
+                return;
+            }
+        } else if (files.length === 0) {
+            return;
+        }
+        setExplaining(true);
+        setExplanation("");
+        setExplainError("");
+        setExplainedAll(true);
+        const request = mode === "history" && selectedCommit
+            ? ExplainAllCommitChanges(selectedCommit.Hash)
+            : ExplainAllChanges();
         request
             .then(setExplanation)
             .catch((err) => setExplainError(String(err)))
@@ -296,20 +325,33 @@ function App() {
                             disabled={!ready || !selectedPath || explaining}
                             onClick={explain}
                         >
-                            {explaining ? "Explaining…" : "Explain"}
+                            {explaining && !explainedAll ? "Explaining…" : "Explain"}
+                        </button>
+                        <button
+                            className="explain-all-button"
+                            disabled={!ready || explaining || (mode === "history"
+                                ? !selectedCommit || commitFiles.length === 0
+                                : files.length === 0)}
+                            onClick={explainAll}
+                        >
+                            {explaining && explainedAll ? "Explaining…" : "Explain All"}
                         </button>
                     </div>
-                    {!selectedPath && (
-                        <p className="placeholder">Select a file to see its explanation</p>
-                    )}
-                    {selectedPath && !explaining && !explanation && !explainError && (
-                        <p className="placeholder">Click Explain to see an explanation of this diff</p>
+                    {!explaining && !explanation && !explainError && (
+                        <p className="placeholder">
+                            {selectedPath
+                                ? "Click Explain to see an explanation of this diff"
+                                : "Select a file to see its explanation, or use Explain All to explain the whole changeset"}
+                        </p>
                     )}
                     {explaining && (
-                        <p className="placeholder">Explaining…</p>
+                        <p className="placeholder">{explainedAll ? "Explaining all changes…" : "Explaining…"}</p>
                     )}
                     {explainError && (
                         <p className="explain-error">{explainError}</p>
+                    )}
+                    {explanation && explainedAll && (
+                        <p className="explanation-scope-label">Whole changeset</p>
                     )}
                     {explanation && explanation.split(/\n\n+/).map((paragraph, i) => (
                         <p key={i}>{paragraph}</p>
