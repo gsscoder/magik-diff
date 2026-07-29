@@ -5,6 +5,7 @@ import {
     ChangedFiles,
     CommitFileDiff,
     CommitFiles,
+    ExplainCommitFile,
     ExplainFile,
     FileDiff,
     GetConfig,
@@ -146,13 +147,16 @@ function App() {
     }
 
     function explain() {
-        if (!selectedPath || mode !== "changes") {
+        if (!selectedPath || (mode === "history" && !selectedCommit)) {
             return;
         }
         setExplaining(true);
         setExplanation("");
         setExplainError("");
-        ExplainFile(selectedPath)
+        const request = mode === "history" && selectedCommit
+            ? ExplainCommitFile(selectedCommit.Hash, selectedPath)
+            : ExplainFile(selectedPath);
+        request
             .then(setExplanation)
             .catch((err) => setExplainError(String(err)))
             .finally(() => setExplaining(false));
@@ -289,8 +293,7 @@ function App() {
                     <div className="explanation-header">
                         <button
                             className="explain-button"
-                            disabled={!ready || mode !== "changes" || !selectedPath || explaining}
-                            title={mode !== "changes" ? "Explain works on working-tree changes only" : undefined}
+                            disabled={!ready || !selectedPath || explaining}
                             onClick={explain}
                         >
                             {explaining ? "Explaining…" : "Explain"}
@@ -299,10 +302,7 @@ function App() {
                     {!selectedPath && (
                         <p className="placeholder">Select a file to see its explanation</p>
                     )}
-                    {selectedPath && mode === "history" && (
-                        <p className="placeholder">Explain works on working-tree changes only</p>
-                    )}
-                    {selectedPath && mode === "changes" && !explaining && !explanation && !explainError && (
+                    {selectedPath && !explaining && !explanation && !explainError && (
                         <p className="placeholder">Click Explain to see an explanation of this diff</p>
                     )}
                     {explaining && (

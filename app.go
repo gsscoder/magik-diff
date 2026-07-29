@@ -106,7 +106,25 @@ func (a *App) ExplainFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return explainDiff(diff)
+}
 
+// ExplainCommitFile fetches the raw diff for path as changed by the given
+// commit and asks the configured LLM to explain what changed and why,
+// returning its prose response. It returns a clear error, rather than an
+// empty string, if the base URL, model, or API key is not configured.
+func (a *App) ExplainCommitFile(hash, path string) (string, error) {
+	diff, err := gitdiff.CommitFileDiff(hash, path)
+	if err != nil {
+		return "", err
+	}
+	return explainDiff(diff)
+}
+
+// explainDiff asks the configured LLM to explain the given raw diff and
+// returns its prose response. It returns a clear error, rather than an empty
+// string, if the base URL, model, or API key is not configured.
+func explainDiff(diff string) (string, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return "", err

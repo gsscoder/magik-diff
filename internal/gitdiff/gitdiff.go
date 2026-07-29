@@ -6,7 +6,9 @@ package gitdiff
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -90,14 +92,46 @@ func ChangedFiles() ([]FileChange, error) {
 }
 
 // FileDiff returns the raw unified diff text for path in the working tree,
-// equivalent to `git diff -- <path>`. It returns an empty string if path has
-// no diff against HEAD (e.g. it is unchanged, or untracked).
+// covering both staged and unstaged changes against HEAD (equivalent to
+// `git diff HEAD -- <path>`). A genuinely untracked path has no index entry
+// at all, so plain `git diff` (even against HEAD) never shows it; those are
+// diffed against an empty file instead, so their whole content appears as
+// added, matching how ChangedFiles reports them.
 func FileDiff(path string) (string, error) {
-	out, err := runGit("diff", "--", path)
+	statusOut, err := runGit("status", "--porcelain=v1", "-z", "--", path)
+	if err != nil {
+		return "", err
+	}
+	if len(statusOut) >= 2 && statusOut[0] == '?' && statusOut[1] == '?' {
+		return diffAgainstEmpty(path)
+	}
+
+	out, err := runGit("diff", "HEAD", "--", path)
 	if err != nil {
 		return "", err
 	}
 	return string(out), nil
+}
+
+// diffAgainstEmpty diffs path against an empty file via `git diff --no-index`,
+// so an untracked file's entire content is reported as added lines. Unlike
+// plain `git diff`, --no-index uses diff(1)-style exit codes: 0 (no
+// difference) and 1 (difference found) are both success, only >1 is a real
+// error.
+func diffAgainstEmpty(path string) (string, error) {
+	cmd := exec.Command("git", "diff", "--no-index", "--", os.DevNull, path)
+	hideConsole(cmd)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return stdout.String(), nil
+		}
+		return "", fmt.Errorf("git diff --no-index -- %s: %w: %s", path, err, strings.TrimSpace(stderr.String()))
+	}
+	return stdout.String(), nil
 }
 
 // runGit runs git with args in the current working directory and returns its

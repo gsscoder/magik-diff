@@ -181,6 +181,39 @@ func TestChangedFiles_CleanRepoMarshalsToEmptyArrayNotNull(t *testing.T) {
 	}
 }
 
+func TestFileDiff_UntrackedFileShowsContentAsAdded(t *testing.T) {
+	dir := initRepo(t)
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "initial")
+
+	writeFile(t, dir, "new.txt", "brand new content\n")
+
+	diff, err := FileDiff("new.txt")
+	if err != nil {
+		t.Fatalf("FileDiff: %v", err)
+	}
+	if !strings.Contains(diff, "+brand new content") {
+		t.Errorf("diff missing added content for untracked file, got:\n%s", diff)
+	}
+}
+
+func TestFileDiff_StagedModificationIsVisible(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "file.txt", "unchanged line\nold line\n")
+	runGitIn(t, dir, "add", "file.txt")
+	runGitIn(t, dir, "commit", "-q", "-m", "initial")
+
+	writeFile(t, dir, "file.txt", "unchanged line\nnew line\n")
+	runGitIn(t, dir, "add", "file.txt")
+
+	diff, err := FileDiff("file.txt")
+	if err != nil {
+		t.Fatalf("FileDiff: %v", err)
+	}
+	if !strings.Contains(diff, "-old line") || !strings.Contains(diff, "+new line") {
+		t.Errorf("diff missing staged change, got:\n%s", diff)
+	}
+}
+
 func TestFileDiff_ModifiedContainsAddedAndRemovedLines(t *testing.T) {
 	dir := initRepo(t)
 	writeFile(t, dir, "file.txt", "unchanged line\nold line\n")
