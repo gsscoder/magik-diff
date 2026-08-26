@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -30,6 +31,42 @@ type FileChange struct {
 	// OrigPath is the previous path, set only when Type is Renamed.
 	OrigPath string
 	Type     ChangeType
+	// IsCode reports whether Path's extension is a mainstream source-code
+	// language, used by the frontend to default-select files for LLM calls
+	// (excluding build/config/lockfiles such as .csproj or package.json).
+	IsCode bool
+}
+
+// codeExtensions holds the lowercase, dot-prefixed file extensions
+// recognized as mainstream source-code languages.
+var codeExtensions = map[string]struct{}{
+	".go":    {},
+	".cs":    {},
+	".ts":    {},
+	".tsx":   {},
+	".js":    {},
+	".jsx":   {},
+	".py":    {},
+	".java":  {},
+	".kt":    {},
+	".rs":    {},
+	".c":     {},
+	".cpp":   {},
+	".h":     {},
+	".rb":    {},
+	".php":   {},
+	".swift": {},
+	".scala": {},
+	".sql":   {},
+	".sh":    {},
+	".ps1":   {},
+}
+
+// isCodeFile reports whether path's extension identifies a mainstream
+// source-code language, as opposed to a build/config/lockfile.
+func isCodeFile(path string) bool {
+	_, ok := codeExtensions[strings.ToLower(filepath.Ext(path))]
+	return ok
 }
 
 // Commit describes one commit in the repository history.
@@ -185,14 +222,14 @@ func parseNameStatus(out []byte) []FileChange {
 			if i+1 >= len(tokens) {
 				break
 			}
-			changes = append(changes, FileChange{Path: tokens[i+1], OrigPath: tokens[i], Type: Renamed})
+			changes = append(changes, FileChange{Path: tokens[i+1], OrigPath: tokens[i], Type: Renamed, IsCode: isCodeFile(tokens[i+1])})
 			i += 2
 			continue
 		}
 		if i >= len(tokens) {
 			break
 		}
-		changes = append(changes, FileChange{Path: tokens[i], Type: classifyStatus(status[0])})
+		changes = append(changes, FileChange{Path: tokens[i], Type: classifyStatus(status[0]), IsCode: isCodeFile(tokens[i])})
 		i++
 	}
 	return changes
@@ -230,7 +267,7 @@ func parsePorcelain(out []byte) []FileChange {
 		x, y := record[0], record[1]
 		path := record[3:]
 
-		change := FileChange{Path: path, Type: classify(x, y)}
+		change := FileChange{Path: path, Type: classify(x, y), IsCode: isCodeFile(path)}
 		if x == 'R' || x == 'C' || y == 'R' || y == 'C' {
 			i++
 			if i < len(tokens) {

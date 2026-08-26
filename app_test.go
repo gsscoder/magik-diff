@@ -6,8 +6,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-
-	"mdiff/internal/gitdiff"
 )
 
 // runGitIn runs git with args inside dir, failing the test on error.
@@ -48,16 +46,13 @@ func initRepo(t *testing.T) string {
 }
 
 func TestCombineDiffs(t *testing.T) {
-	files := []gitdiff.FileChange{
-		{Path: "a.txt", Type: gitdiff.Modified},
-		{Path: "b.txt", Type: gitdiff.Added},
-	}
+	paths := []string{"a.txt", "b.txt"}
 	diffs := map[string]string{
 		"a.txt": "diff a content\n",
 		"b.txt": "diff b content\n",
 	}
 
-	got, err := combineDiffs(files, func(path string) (string, error) {
+	got, err := combineDiffs(paths, func(path string) (string, error) {
 		return diffs[path], nil
 	})
 	if err != nil {
@@ -71,10 +66,10 @@ func TestCombineDiffs(t *testing.T) {
 }
 
 func TestCombineDiffs_PropagatesError(t *testing.T) {
-	files := []gitdiff.FileChange{{Path: "broken.txt", Type: gitdiff.Modified}}
+	paths := []string{"broken.txt"}
 	wantErr := errors.New("boom")
 
-	_, err := combineDiffs(files, func(path string) (string, error) {
+	_, err := combineDiffs(paths, func(path string) (string, error) {
 		return "", wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -82,30 +77,28 @@ func TestCombineDiffs_PropagatesError(t *testing.T) {
 	}
 }
 
-func TestExplainAllChanges_NoChanges(t *testing.T) {
+func TestExplain_NoSelection(t *testing.T) {
 	initRepo(t)
 
 	app := &App{}
-	_, err := app.ExplainAllChanges()
+	_, err := app.Explain("", []string{})
 	if err == nil {
-		t.Fatal("ExplainAllChanges: expected error for a clean working tree, got nil")
+		t.Fatal("Explain: expected error when no files are selected, got nil")
 	}
-	if !strings.Contains(err.Error(), "nothing to explain") {
-		t.Errorf("ExplainAllChanges error = %q, want it to mention %q", err.Error(), "nothing to explain")
+	if !strings.Contains(err.Error(), "nothing to explain: no files are selected") {
+		t.Errorf("Explain error = %q, want it to mention %q", err.Error(), "nothing to explain: no files are selected")
 	}
 }
 
-func TestExplainAllCommitChanges_NoFiles(t *testing.T) {
-	dir := initRepo(t)
-	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "empty commit")
-	hash := runGitIn(t, dir, "rev-parse", "HEAD")
+func TestRunCheck_NoSelection(t *testing.T) {
+	initRepo(t)
 
 	app := &App{}
-	_, err := app.ExplainAllCommitChanges(hash)
+	_, err := app.RunCheck("", "language-consistency", []string{})
 	if err == nil {
-		t.Fatal("ExplainAllCommitChanges: expected error for a commit with no changed files, got nil")
+		t.Fatal("RunCheck: expected error when no files are selected, got nil")
 	}
-	if !strings.Contains(err.Error(), "nothing to explain") {
-		t.Errorf("ExplainAllCommitChanges error = %q, want it to mention %q", err.Error(), "nothing to explain")
+	if !strings.Contains(err.Error(), "nothing to check: no files are selected") {
+		t.Errorf("RunCheck error = %q, want it to mention %q", err.Error(), "nothing to check: no files are selected")
 	}
 }

@@ -18,20 +18,8 @@ export function CommitFiles(arg1) {
   return window['go']['main']['App']['CommitFiles'](arg1);
 }
 
-export function ExplainAllChanges() {
-  return window['go']['main']['App']['ExplainAllChanges']();
-}
-
-export function ExplainAllCommitChanges(arg1) {
-  return window['go']['main']['App']['ExplainAllCommitChanges'](arg1);
-}
-
-export function ExplainCommitFile(arg1, arg2) {
-  return window['go']['main']['App']['ExplainCommitFile'](arg1, arg2);
-}
-
-export function ExplainFile(arg1) {
-  return window['go']['main']['App']['ExplainFile'](arg1);
+export function Explain(arg1, arg2) {
+  return window['go']['main']['App']['Explain'](arg1, arg2);
 }
 
 export function FileDiff(arg1) {
@@ -58,12 +46,8 @@ export function RecentCommits(arg1, arg2) {
   return window['go']['main']['App']['RecentCommits'](arg1, arg2);
 }
 
-export function RunCheckAll(arg1) {
-  return window['go']['main']['App']['RunCheckAll'](arg1);
-}
-
-export function RunCheckOnAllCommitFiles(arg1, arg2) {
-  return window['go']['main']['App']['RunCheckOnAllCommitFiles'](arg1, arg2);
+export function RunCheck(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RunCheck'](arg1, arg2, arg3);
 }
 
 export function SaveConfig(arg1) {

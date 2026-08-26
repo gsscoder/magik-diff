@@ -353,6 +353,28 @@ func TestCommitFiles_RootCommitListsAllFilesAsAdded(t *testing.T) {
 	}
 }
 
+func TestIsCodeFile(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"main.go", true},
+		{"App.tsx", true},
+		{"Program.cs", true},
+		{"script.py", true},
+		{"main.csproj", false},
+		{"package.json", false},
+		{"README.md", false},
+		{"Makefile", false},
+		{"noext", false},
+	}
+	for _, tt := range tests {
+		if got := isCodeFile(tt.path); got != tt.want {
+			t.Errorf("isCodeFile(%q) = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+}
+
 func TestCommitFileDiff_ContainsAddedAndRemovedLines(t *testing.T) {
 	dir := initRepo(t)
 	writeFile(t, dir, "file.txt", "unchanged line\nold line\n")

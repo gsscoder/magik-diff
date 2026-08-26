@@ -1,16 +1,32 @@
 :root {
     color-scheme: dark;
-    --bg: #0f141a;
-    --surface: #161c24;
-    --surface-hover: #1c232d;
-    --border: #2a313b;
-    --text: #d7dde4;
-    --text-muted: #7d8794;
-    --accent: #539bf5;
-    --added: #3fb950;
-    --removed: #f85149;
-    --modified: #d29922;
+
+    /* Graphite surfaces */
+    --bg: #1a1a1c;
+    --surface: #202023;
+    --surface-hover: #27272b;
+    --surface-raised: #2d2d32;
+    --border: #303035;
+    --border-strong: #3f3f45;
+
+    /* Text */
+    --text: #dcdcdc;
+    --text-strong: #f2f2f2;
+    --text-muted: #8e8e94;
+
+    /* Monochrome accent: emphasis comes from weight, not hue */
+    --accent: #b9bec6;
+
+    /* Status hues are the only color in the UI */
+    --added: #5dbb63;
+    --removed: #e5534b;
+    --modified: #d9a441;
     --renamed: #a371f7;
+
+    --radius: 6px;
+    --radius-sm: 4px;
+    --speed: 120ms;
+
     --font-ui: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "Cascadia Code", "Cascadia Mono", Consolas, "Courier New", monospace;
 }
@@ -25,10 +41,17 @@ body {
     font-family: var(--font-ui);
     font-size: 13px;
     line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
 }
 
 #app {
     height: 100vh;
+}
+
+/* Thin graphite scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
 }
 
 button {
@@ -36,14 +59,21 @@ button {
     color: var(--text);
     background-color: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    padding: 5px 12px;
     cursor: pointer;
+    transition: background-color var(--speed) ease, border-color var(--speed) ease,
+        color var(--speed) ease;
 }
 
 button:hover:not(:disabled) {
     background-color: var(--surface-hover);
-    border-color: var(--text-muted);
+    border-color: var(--border-strong);
+    color: var(--text-strong);
+}
+
+button:active:not(:disabled) {
+    background-color: var(--surface);
 }
 
 button:disabled {
@@ -56,11 +86,31 @@ input {
     color: var(--text);
     background-color: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 5px 8px;
     outline: none;
+    transition: border-color var(--speed) ease, box-shadow var(--speed) ease;
+}
+
+input:hover {
+    border-color: var(--border-strong);
 }
 
 input:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+    }
 }

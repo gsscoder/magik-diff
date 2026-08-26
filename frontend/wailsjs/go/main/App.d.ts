@@ -13,13 +13,7 @@ export function CommitFileDiff(arg1:string,arg2:string):Promise<diffparse.FileDi
 
 export function CommitFiles(arg1:string):Promise<Array<gitdiff.FileChange>>;
 
-export function ExplainAllChanges():Promise<string>;
-
-export function ExplainAllCommitChanges(arg1:string):Promise<string>;
-
-export function ExplainCommitFile(arg1:string,arg2:string):Promise<string>;
-
-export function ExplainFile(arg1:string):Promise<string>;
+export function Explain(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<diffparse.FileDiff>;
 
@@ -33,9 +27,7 @@ export function ListChecks():Promise<Array<checks.Check>>;
 
 export function RecentCommits(arg1:number,arg2:number):Promise<Array<gitdiff.Commit>>;
 
-export function RunCheckAll(arg1:string):Promise<string>;
-
-export function RunCheckOnAllCommitFiles(arg1:string,arg2:string):Promise<string>;
+export function RunCheck(arg1:string,arg2:string,arg3:Array<string>):Promise<string>;
 
 export function SaveConfig(arg1:config.Config):Promise<void>;
 

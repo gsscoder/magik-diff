@@ -99,65 +99,25 @@ func (a *App) SetAPIKey(key string) error {
 	return config.SetAPIKey(key)
 }
 
-// ExplainFile fetches the raw diff for path and asks the configured LLM to
-// explain what changed and why, returning its prose response. It returns a
-// clear error, rather than an empty string, if the base URL, model, or API
-// key is not configured.
-func (a *App) ExplainFile(path string) (string, error) {
-	diff, err := gitdiff.FileDiff(path)
-	if err != nil {
-		return "", err
+// Explain asks the configured LLM to explain the diffs of paths, scoped to
+// the working tree when hash is empty or to the given commit otherwise. A
+// single path uses the terse per-file prompt; multiple paths are combined
+// into one diff blob and explained holistically. It returns a clear error
+// if paths is empty, or if the base URL, model, or API key is not
+// configured.
+func (a *App) Explain(hash string, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return "", fmt.Errorf("nothing to explain: no files are selected")
 	}
-	return explainDiff(diff)
-}
-
-// ExplainCommitFile fetches the raw diff for path as changed by the given
-// commit and asks the configured LLM to explain what changed and why,
-// returning its prose response. It returns a clear error, rather than an
-// empty string, if the base URL, model, or API key is not configured.
-func (a *App) ExplainCommitFile(hash, path string) (string, error) {
-	diff, err := gitdiff.CommitFileDiff(hash, path)
-	if err != nil {
-		return "", err
+	if len(paths) == 1 {
+		diff, err := diffForPath(hash, paths[0])
+		if err != nil {
+			return "", err
+		}
+		return explainDiff(diff)
 	}
-	return explainDiff(diff)
-}
-
-// ExplainAllChanges gathers the diff for every changed file in the working
-// tree, concatenates them into one combined diff blob, and asks the
-// configured LLM for a single holistic explanation of the whole changeset
-// (its overall intent, not a per-file recap). It returns a clear error if
-// the working tree has no changes, rather than calling the LLM with nothing.
-func (a *App) ExplainAllChanges() (string, error) {
-	files, err := gitdiff.ChangedFiles()
-	if err != nil {
-		return "", err
-	}
-	if len(files) == 0 {
-		return "", fmt.Errorf("nothing to explain: the working tree has no changes")
-	}
-	combined, err := combineDiffs(files, gitdiff.FileDiff)
-	if err != nil {
-		return "", err
-	}
-	return runExplain(allChangesPrompt(combined))
-}
-
-// ExplainAllCommitChanges gathers the diff for every file changed by the
-// given commit, concatenates them into one combined diff blob, and asks the
-// configured LLM for a single holistic explanation of the whole changeset
-// (its overall intent, not a per-file recap). It returns a clear error if
-// the commit changed no files, rather than calling the LLM with nothing.
-func (a *App) ExplainAllCommitChanges(hash string) (string, error) {
-	files, err := gitdiff.CommitFiles(hash)
-	if err != nil {
-		return "", err
-	}
-	if len(files) == 0 {
-		return "", fmt.Errorf("nothing to explain: commit %s changed no files", hash)
-	}
-	combined, err := combineDiffs(files, func(path string) (string, error) {
-		return gitdiff.CommitFileDiff(hash, path)
+	combined, err := combineDiffs(paths, func(path string) (string, error) {
+		return diffForPath(hash, path)
 	})
 	if err != nil {
 		return "", err
@@ -165,21 +125,30 @@ func (a *App) ExplainAllCommitChanges(hash string) (string, error) {
 	return runExplain(allChangesPrompt(combined))
 }
 
-// combineDiffs fetches the diff for each of files via diffFn and
+// diffForPath fetches the raw diff for path, scoped to the working tree
+// when hash is empty or to the given commit otherwise.
+func diffForPath(hash, path string) (string, error) {
+	if hash == "" {
+		return gitdiff.FileDiff(path)
+	}
+	return gitdiff.CommitFileDiff(hash, path)
+}
+
+// combineDiffs fetches the diff for each of paths via diffFn and
 // concatenates them into one blob, with a "--- path ---" separator line
 // preceding each file's diff, suitable as input to a holistic
 // all-changes explanation prompt.
-func combineDiffs(files []gitdiff.FileChange, diffFn func(path string) (string, error)) (string, error) {
+func combineDiffs(paths []string, diffFn func(path string) (string, error)) (string, error) {
 	var b strings.Builder
-	for i, f := range files {
-		diff, err := diffFn(f.Path)
+	for i, p := range paths {
+		diff, err := diffFn(p)
 		if err != nil {
 			return "", err
 		}
 		if i > 0 {
 			b.WriteString("\n")
 		}
-		fmt.Fprintf(&b, "--- %s ---\n", f.Path)
+		fmt.Fprintf(&b, "--- %s ---\n", p)
 		b.WriteString(diff)
 	}
 	return b.String(), nil
@@ -255,47 +224,21 @@ func (a *App) ListChecks() ([]checks.Check, error) {
 	return checks.List()
 }
 
-// RunCheckAll runs the named check against the combined diff of every
-// changed file in the working tree, returning the LLM's prose response. It
-// returns a clear error if no check with that name exists, or if the
-// working tree has no changes.
-func (a *App) RunCheckAll(checkName string) (string, error) {
+// RunCheck runs the named user-defined check against the diffs of paths,
+// scoped to the working tree when hash is empty or to the given commit
+// otherwise, returning the LLM's prose response. It returns a clear error
+// if paths is empty, if no check with that name exists, or if the base URL,
+// model, or API key is not configured.
+func (a *App) RunCheck(hash, checkName string, paths []string) (string, error) {
+	if len(paths) == 0 {
+		return "", fmt.Errorf("nothing to check: no files are selected")
+	}
 	c, err := findCheck(checkName)
 	if err != nil {
 		return "", err
 	}
-	files, err := gitdiff.ChangedFiles()
-	if err != nil {
-		return "", err
-	}
-	if len(files) == 0 {
-		return "", fmt.Errorf("nothing to check: the working tree has no changes")
-	}
-	combined, err := combineDiffs(files, gitdiff.FileDiff)
-	if err != nil {
-		return "", err
-	}
-	return runExplain(checkPrompt(combined, c))
-}
-
-// RunCheckOnAllCommitFiles runs the named check against the combined diff of
-// every file changed by the given commit, returning the LLM's prose
-// response. It returns a clear error if no check with that name exists, or
-// if the commit changed no files.
-func (a *App) RunCheckOnAllCommitFiles(hash, checkName string) (string, error) {
-	c, err := findCheck(checkName)
-	if err != nil {
-		return "", err
-	}
-	files, err := gitdiff.CommitFiles(hash)
-	if err != nil {
-		return "", err
-	}
-	if len(files) == 0 {
-		return "", fmt.Errorf("nothing to check: commit %s changed no files", hash)
-	}
-	combined, err := combineDiffs(files, func(path string) (string, error) {
-		return gitdiff.CommitFileDiff(hash, path)
+	combined, err := combineDiffs(paths, func(path string) (string, error) {
+		return diffForPath(hash, path)
 	})
 	if err != nil {
 		return "", err

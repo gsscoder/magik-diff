@@ -6,17 +6,13 @@ import {
     ChangedFiles,
     CommitFileDiff,
     CommitFiles,
-    ExplainAllChanges,
-    ExplainAllCommitChanges,
-    ExplainCommitFile,
-    ExplainFile,
+    Explain,
     FileDiff,
     GetConfig,
     HasAPIKey,
     ListChecks,
     RecentCommits,
-    RunCheckAll,
-    RunCheckOnAllCommitFiles,
+    RunCheck,
     SaveConfig,
     SetAPIKey,
 } from "../wailsjs/go/main/App";
@@ -42,6 +38,10 @@ const statusStyles: Record<string, FileStatus> = {
 
 const fallbackStatus: FileStatus = {glyph: "?", label: "Changed", className: ""};
 
+function defaultChecked(files: gitdiff.FileChange[]): Set<string> {
+    return new Set(files.filter((f) => f.IsCode).map((f) => f.Path));
+}
+
 function App() {
     const [mode, setMode] = useState<RailMode>("changes");
     const [files, setFiles] = useState<gitdiff.FileChange[]>([]);
@@ -54,6 +54,8 @@ function App() {
     const [commitFiles, setCommitFiles] = useState<gitdiff.FileChange[]>([]);
     const loadingCommits = useRef(false);
 
+    const [checked, setChecked] = useState<Set<string>>(new Set());
+
     const [cfg, setCfg] = useState<config.Config>(new config.Config());
     const [hasKey, setHasKey] = useState(false);
     const [usedFallback, setUsedFallback] = useState(false);
@@ -62,8 +64,26 @@ function App() {
     const [explanation, setExplanation] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
-    const [explainedAll, setExplainedAll] = useState(false);
+    const [explainedCount, setExplainedCount] = useState(0);
     const [explanationExpanded, setExplanationExpanded] = useState(false);
+    const [explainWidth, setExplainWidth] = useState(380);
+
+    const startResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = explainWidth;
+        const onMove = (moveEvent: MouseEvent) => {
+            const next = startWidth - (moveEvent.clientX - startX);
+            const max = window.innerWidth - 240 - 200;
+            setExplainWidth(Math.min(Math.max(next, 240), Math.max(max, 240)));
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
 
     const [checksList, setChecksList] = useState<checks.Check[]>([]);
     const [checkResults, setCheckResults] = useState<Record<string, { running: boolean; result: string; error: string }>>({});
@@ -75,7 +95,11 @@ function App() {
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
     useEffect(() => {
-        ChangedFiles().then((f) => setFiles(f ?? []));
+        ChangedFiles().then((f) => {
+            const loaded = f ?? [];
+            setFiles(loaded);
+            setChecked(defaultChecked(loaded));
+        });
         checkReadiness();
         ListChecks().then((c) => setChecksList(c ?? []));
     }, []);
@@ -120,7 +144,6 @@ function App() {
         }
         setExplanation("");
         setExplainError("");
-        setExplainedAll(false);
     }
 
     function loadCommits() {
@@ -150,10 +173,10 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
-        setExplainedAll(false);
         setCheckResults({});
         setSelectedCommit(null);
         setCommitFiles([]);
+        setChecked(new Set());
         if (next === "history" && commits.length === 0) {
             loadCommits();
         }
@@ -165,9 +188,12 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
-        setExplainedAll(false);
         setCheckResults({});
-        CommitFiles(commit.Hash).then((f) => setCommitFiles(f ?? []));
+        CommitFiles(commit.Hash).then((f) => {
+            const loaded = f ?? [];
+            setCommitFiles(loaded);
+            setChecked(defaultChecked(loaded));
+        });
     }
 
     function backToCommits() {
@@ -177,8 +203,8 @@ function App() {
         setParsedDiff(null);
         setExplanation("");
         setExplainError("");
-        setExplainedAll(false);
         setCheckResults({});
+        setChecked(new Set());
     }
 
     function handleRailScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -192,37 +218,16 @@ function App() {
     }
 
     function explain() {
-        if (!selectedPath || (mode === "history" && !selectedCommit)) {
+        if (checked.size === 0) {
             return;
         }
         setExplaining(true);
         setExplanation("");
         setExplainError("");
-        setExplainedAll(false);
+        setExplainedCount(checked.size);
         const request = mode === "history" && selectedCommit
-            ? ExplainCommitFile(selectedCommit.Hash, selectedPath)
-            : ExplainFile(selectedPath);
-        request
-            .then(setExplanation)
-            .catch((err) => setExplainError(String(err)))
-            .finally(() => setExplaining(false));
-    }
-
-    function explainAll() {
-        if (mode === "history") {
-            if (!selectedCommit || commitFiles.length === 0) {
-                return;
-            }
-        } else if (files.length === 0) {
-            return;
-        }
-        setExplaining(true);
-        setExplanation("");
-        setExplainError("");
-        setExplainedAll(true);
-        const request = mode === "history" && selectedCommit
-            ? ExplainAllCommitChanges(selectedCommit.Hash)
-            : ExplainAllChanges();
+            ? Explain(selectedCommit.Hash, [...checked])
+            : Explain("", [...checked]);
         request
             .then(setExplanation)
             .catch((err) => setExplainError(String(err)))
@@ -230,17 +235,13 @@ function App() {
     }
 
     function runCheck(check: checks.Check) {
-        if (mode === "history") {
-            if (!selectedCommit || commitFiles.length === 0) {
-                return;
-            }
-        } else if (files.length === 0) {
+        if (checked.size === 0) {
             return;
         }
         setCheckResults((prev) => ({...prev, [check.Name]: {running: true, result: "", error: ""}}));
         const request = mode === "history" && selectedCommit
-            ? RunCheckOnAllCommitFiles(selectedCommit.Hash, check.Name)
-            : RunCheckAll(check.Name);
+            ? RunCheck(selectedCommit.Hash, check.Name, [...checked])
+            : RunCheck("", check.Name, [...checked]);
         request
             .then((result) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result, error: ""}})))
             .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result: "", error: String(err)}})));
@@ -270,25 +271,66 @@ function App() {
         );
     }
 
+    function toggleChecked(path: string) {
+        setChecked((prev) => {
+            const next = new Set(prev);
+            if (next.has(path)) {
+                next.delete(path);
+            } else {
+                next.add(path);
+            }
+            return next;
+        });
+    }
+
+    function toggleCheckedAll(items: gitdiff.FileChange[]) {
+        const allChecked = items.length > 0 && items.every((f) => checked.has(f.Path));
+        setChecked(allChecked ? new Set() : new Set(items.map((f) => f.Path)));
+    }
+
     function renderFileList(items: gitdiff.FileChange[]) {
+        const allChecked = items.length > 0 && items.every((f) => checked.has(f.Path));
+        const someChecked = items.some((f) => checked.has(f.Path));
         return (
-            <ul className="file-list">
-                {items.map((file) => {
-                    const status = statusStyles[file.Type] ?? fallbackStatus;
-                    return (
-                        <li
-                            key={file.Path}
-                            className={file.Path === selectedPath ? "file-item selected" : "file-item"}
-                            onClick={() => selectFile(file.Path)}
-                        >
-                            <span className={`file-type ${status.className}`} title={status.label}>
-                                {status.glyph}
-                            </span>
-                            <span className="file-path">{file.Path}</span>
-                        </li>
-                    );
-                })}
-            </ul>
+            <>
+                <div className="file-list-select-all">
+                    <input
+                        type="checkbox"
+                        checked={allChecked}
+                        ref={(el) => {
+                            if (el) {
+                                el.indeterminate = !allChecked && someChecked;
+                            }
+                        }}
+                        onChange={() => toggleCheckedAll(items)}
+                    />
+                    <span>Select all</span>
+                </div>
+                <ul className="file-list">
+                    {items.map((file) => {
+                        const status = statusStyles[file.Type] ?? fallbackStatus;
+                        return (
+                            <li
+                                key={file.Path}
+                                className={file.Path === selectedPath ? "file-item selected" : "file-item"}
+                                onClick={() => selectFile(file.Path)}
+                            >
+                                <input
+                                    type="checkbox"
+                                    className="file-checkbox"
+                                    checked={checked.has(file.Path)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={() => toggleChecked(file.Path)}
+                                />
+                                <span className={`file-type ${status.className}`} title={status.label}>
+                                    {status.glyph}
+                                </span>
+                                <span className="file-path">{file.Path}</span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </>
         );
     }
 
@@ -305,7 +347,11 @@ function App() {
                     <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
                 </div>
             )}
-            <div id="App" className={explanationExpanded ? "explanation-expanded" : undefined}>
+            <div
+                id="App"
+                className={explanationExpanded ? "explanation-expanded" : undefined}
+                style={{"--explain-width": `${explainWidth}px`} as React.CSSProperties}
+            >
                 <div className="rail" onScroll={handleRailScroll}>
                     <div className="rail-tabs">
                         <button
@@ -373,6 +419,9 @@ function App() {
                         </div>
                     ))}
                 </div>
+                {!explanationExpanded && (
+                    <div className="pane-resizer" onMouseDown={startResize} />
+                )}
                 <div className="explanation-pane">
                     <div className="explanation-header">
                         <button
@@ -383,19 +432,10 @@ function App() {
                         </button>
                         <button
                             className="explain-button"
-                            disabled={!ready || !selectedPath || explaining}
+                            disabled={!ready || checked.size === 0 || explaining}
                             onClick={explain}
                         >
-                            {explaining && !explainedAll ? "Explaining…" : "Explain"}
-                        </button>
-                        <button
-                            className="explain-all-button"
-                            disabled={!ready || explaining || (mode === "history"
-                                ? !selectedCommit || commitFiles.length === 0
-                                : files.length === 0)}
-                            onClick={explainAll}
-                        >
-                            {explaining && explainedAll ? "Explaining…" : "Explain All"}
+                            {explaining ? "Explaining…" : "Explain"}
                         </button>
                     </div>
                     {checksList.length > 0 && (
@@ -403,9 +443,7 @@ function App() {
                             {checksList.map((check) => {
                                 const state = checkResults[check.Name];
                                 const disabled = !ready
-                                    || (mode === "history"
-                                        ? !selectedCommit || commitFiles.length === 0
-                                        : files.length === 0)
+                                    || checked.size === 0
                                     || (state?.running ?? false);
                                 return (
                                     <button
@@ -423,19 +461,19 @@ function App() {
                     )}
                     {!explaining && !explanation && !explainError && (
                         <p className="placeholder">
-                            {selectedPath
-                                ? "Click Explain to see an explanation of this diff"
-                                : "Select a file to see its explanation, or use Explain All to explain the whole changeset"}
+                            {checked.size > 0
+                                ? "Click Explain to see an explanation of the checked files"
+                                : "Check one or more files, then click Explain"}
                         </p>
                     )}
                     {explaining && (
-                        <p className="placeholder">{explainedAll ? "Explaining all changes…" : "Explaining…"}</p>
+                        <p className="placeholder">Explaining…</p>
                     )}
                     {explainError && (
                         <p className="explain-error">{explainError}</p>
                     )}
-                    {explanation && explainedAll && (
-                        <p className="explanation-scope-label">Whole changeset</p>
+                    {explanation && explainedCount > 1 && (
+                        <p className="explanation-scope-label">{explainedCount} files</p>
                     )}
                     {explanation && (
                         <div className="markdown-body">
