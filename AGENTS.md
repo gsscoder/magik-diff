@@ -1,10 +1,19 @@
-# AI guidance
+# Project Overview & AI Instructions
 
 ## Project Brief
 A git diff viewer whose differentiator is an LLM explaining a diff on demand — one file, all tracked changes, or a past commit. Read-only forever: never stages, commits, or checks out. Explicitly not shaped like GitHub Desktop or LazyGit — do not converge on their layout or feature set as a safe default.
 
 ## Core Technologies
 Go + Wails (native desktop shell, OS webview, no bundled Chromium), React (frontend), `os/exec` (shells out to real `git`), any OpenAI-compatible HTTP endpoint (no LLM SDK)
+
+## Layers
+- `app.go`, `main.go` — Wails bootstrap and bound methods exposed to the frontend (the per-call entry points)
+- `internal/gitdiff` — shells out to `git`, parses raw diff/log/status output
+- `internal/diffparse` — hunk/line structuring and word-level intraline diffing
+- `internal/llm` — OpenAI-compatible HTTP client for the Explain/Explain-All calls
+- `internal/checks` — user-defined diff checks (loaded from `checks/*.md`)
+- `internal/config` — settings and API key persistence
+- `frontend/src` — React UI (left rail, center diff, right AI pane)
 
 ## Architecture
 Single native desktop binary: Go backend exposing bound methods to a React UI via Wails' Go↔JS bridge (not an HTTP server opened in a browser tab):
@@ -21,9 +30,7 @@ Single native desktop binary: Go backend exposing bound methods to a React UI vi
 - Backward compatibility is not required when changing existing features
 
 ## Memory
-The development documents are organized in the `memory-bank` dir:
-- `detailed-spec`: primarily focuses on specific feature implementation details
-- `gen-directives`: content and code generation guidelines
+The development documents are in the `memory-bank` dir — they primarily focus on specific feature implementation details
 
 ## Output
 - Code: match the architectural and stylistic conventions of the existing codebase
@@ -31,10 +38,26 @@ The development documents are organized in the `memory-bank` dir:
 - Quality: production-grade — every line will be reviewed
 - Markdown: compact, no linting compliance, formatting identical to this file
 
+### Go Code Standards
+- Generate production-grade Go (1.23+) code, favoring idiomatic, safe, and performant patterns over legacy or over-engineered abstractions
+- Avoid `panic` for expected errors; wrap with `fmt.Errorf` using `%w` and check with `errors.Is`/`errors.As`
+- Do not spawn unmanaged goroutines; use `errgroup` for lifecycles and always pass `context.Context` as the first parameter
+- Avoid premature interface definitions; accept interfaces and return structs, defining them only in the consuming package
+- Always preallocate slices and maps with `make` when capacity is known; mutate via index in `range` loops to avoid copy pitfalls
+- Avoid `interface{}` and legacy `log`; use `any`, `slices`/`maps` packages, and `log/slog` for modern, type-safe operations
+
+### TypeScript Code Standards
+- Generate code for Node.js ESM (ES2022) with TypeScript 6, favoring modern and expressive syntax over legacy patterns
+- Avoid `any`; use `unknown` for uncertain types and narrow before use
+- Do not use non-null assertion (`!`); handle `null`/`undefined` explicitly
+- Avoid `object`/`{}`/`Record<string, any>`; use specific interfaces or type aliases
+- Avoid wide unions; use discriminated unions with `type`/`kind` for explicit handling
+- Avoid `as` casting; use type guards (`is`) for safe narrowing
+
 ## Operational Rules:
-- Read a language-specific file in `gen-directives` only when a coding task is requested
-- Read files in `detailed-spec` only when required by the current task; scan filenames first and read file contents only if they are relevant to the task
-- NEVER update this file
+- Read files in `memory-bank` only when required by the current task; scan filenames first and read file contents only if they are relevant to the task
+- Review/audit/report requests end at the report; fixing findings needs its own separate request — authorization never carries across turns
+- NEVER update `AGENTS.md` without an explicit request
 - NEVER modify `*.md` files in `memory-bank` (at any depth in the dir tree) without an explicit request
 - NEVER initiate any codebase modifications without an explicit request
 - NEVER commit changes to Git history without explicit authorization
