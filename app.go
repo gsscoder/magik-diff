@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"mdiff/internal/checks"
 	"mdiff/internal/config"
 	"mdiff/internal/diffparse"
 	"mdiff/internal/gitdiff"
@@ -246,4 +247,87 @@ func runExplain(prompt string) (string, error) {
 	}
 
 	return llm.Explain(cfg.BaseURL, cfg.Model, apiKey, prompt)
+}
+
+// ListChecks returns every user-defined check available in the checks
+// directory.
+func (a *App) ListChecks() ([]checks.Check, error) {
+	return checks.List()
+}
+
+// RunCheckAll runs the named check against the combined diff of every
+// changed file in the working tree, returning the LLM's prose response. It
+// returns a clear error if no check with that name exists, or if the
+// working tree has no changes.
+func (a *App) RunCheckAll(checkName string) (string, error) {
+	c, err := findCheck(checkName)
+	if err != nil {
+		return "", err
+	}
+	files, err := gitdiff.ChangedFiles()
+	if err != nil {
+		return "", err
+	}
+	if len(files) == 0 {
+		return "", fmt.Errorf("nothing to check: the working tree has no changes")
+	}
+	combined, err := combineDiffs(files, gitdiff.FileDiff)
+	if err != nil {
+		return "", err
+	}
+	return runExplain(checkPrompt(combined, c))
+}
+
+// RunCheckOnAllCommitFiles runs the named check against the combined diff of
+// every file changed by the given commit, returning the LLM's prose
+// response. It returns a clear error if no check with that name exists, or
+// if the commit changed no files.
+func (a *App) RunCheckOnAllCommitFiles(hash, checkName string) (string, error) {
+	c, err := findCheck(checkName)
+	if err != nil {
+		return "", err
+	}
+	files, err := gitdiff.CommitFiles(hash)
+	if err != nil {
+		return "", err
+	}
+	if len(files) == 0 {
+		return "", fmt.Errorf("nothing to check: commit %s changed no files", hash)
+	}
+	combined, err := combineDiffs(files, func(path string) (string, error) {
+		return gitdiff.CommitFileDiff(hash, path)
+	})
+	if err != nil {
+		return "", err
+	}
+	return runExplain(checkPrompt(combined, c))
+}
+
+// findCheck loads every available check and returns the one named
+// checkName, or a clear error if none matches.
+func findCheck(checkName string) (checks.Check, error) {
+	all, err := checks.List()
+	if err != nil {
+		return checks.Check{}, err
+	}
+	for _, c := range all {
+		if c.Name == checkName {
+			return c, nil
+		}
+	}
+	return checks.Check{}, fmt.Errorf("no check named %q is configured", checkName)
+}
+
+// checkPrompt builds the prompt for running a single user-defined check
+// against a single diff, embedding the check's own instructions verbatim.
+func checkPrompt(diff string, c checks.Check) string {
+	return fmt.Sprintf(
+		"You are running a specific automated check against the following "+
+			"diff. The check's instructions are:\n\n%s\n\nApply those "+
+			"instructions to the diff below and report your findings in plain "+
+			"prose. No preamble, no restating the diff, no unrelated "+
+			"commentary.\n\n%s",
+		c.Prompt,
+		diff,
+	)
 }

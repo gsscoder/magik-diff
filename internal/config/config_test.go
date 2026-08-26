@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ func TestLoadMissingFileReturnsZeroValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
 	}
-	if cfg != (Config{}) {
+	if !reflect.DeepEqual(cfg, Config{}) {
 		t.Fatalf("Load() = %+v, want zero-value Config", cfg)
 	}
 }
@@ -28,7 +29,7 @@ func TestSaveThenLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Load() = %+v, want %+v", got, want)
 	}
 }

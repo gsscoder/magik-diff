@@ -360,6 +360,42 @@
     border-color: var(--accent);
 }
 
+.check-buttons-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.check-button {
+    color: var(--text-muted);
+    border-color: var(--border);
+    background: none;
+}
+
+.check-button:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.check-results-box {
+    resize: vertical;
+    overflow: auto;
+    min-height: 80px;
+    height: 180px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+    padding-top: 10px;
+}
+
+.check-result + .check-result {
+    margin-top: 14px;
+}
+
+.check-result-heading {
+    margin: 0 0 4px;
+}
+
 .explanation-pane .placeholder {
     color: var(--text-muted);
 }

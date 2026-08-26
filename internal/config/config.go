@@ -20,8 +20,9 @@ const (
 
 // Config holds the non-secret application settings.
 type Config struct {
-	BaseURL string `json:"base_url"`
-	Model   string `json:"model"`
+	BaseURL       string   `json:"base_url"`
+	Model         string   `json:"model"`
+	EnabledChecks []string `json:"enabled_checks"`
 }
 
 // configDir returns the directory the config file lives in, creating no

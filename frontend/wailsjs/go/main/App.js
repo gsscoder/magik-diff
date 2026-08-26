@@ -50,8 +50,20 @@ export function HasAPIKey() {
   return window['go']['main']['App']['HasAPIKey']();
 }
 
+export function ListChecks() {
+  return window['go']['main']['App']['ListChecks']();
+}
+
 export function RecentCommits(arg1, arg2) {
   return window['go']['main']['App']['RecentCommits'](arg1, arg2);
+}
+
+export function RunCheckAll(arg1) {
+  return window['go']['main']['App']['RunCheckAll'](arg1);
+}
+
+export function RunCheckOnAllCommitFiles(arg1, arg2) {
+  return window['go']['main']['App']['RunCheckOnAllCommitFiles'](arg1, arg2);
 }
 
 export function SaveConfig(arg1) {

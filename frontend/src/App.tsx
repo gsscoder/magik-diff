@@ -13,11 +13,14 @@ import {
     FileDiff,
     GetConfig,
     HasAPIKey,
+    ListChecks,
     RecentCommits,
+    RunCheckAll,
+    RunCheckOnAllCommitFiles,
     SaveConfig,
     SetAPIKey,
 } from "../wailsjs/go/main/App";
-import {config, diffparse, gitdiff} from "../wailsjs/go/models";
+import {checks, config, diffparse, gitdiff} from "../wailsjs/go/models";
 
 type RailMode = "changes" | "history";
 
@@ -62,6 +65,9 @@ function App() {
     const [explainedAll, setExplainedAll] = useState(false);
     const [explanationExpanded, setExplanationExpanded] = useState(false);
 
+    const [checksList, setChecksList] = useState<checks.Check[]>([]);
+    const [checkResults, setCheckResults] = useState<Record<string, { running: boolean; result: string; error: string }>>({});
+
     const [bannerDismissed, setBannerDismissed] = useState(false);
 
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
@@ -71,6 +77,7 @@ function App() {
     useEffect(() => {
         ChangedFiles().then((f) => setFiles(f ?? []));
         checkReadiness();
+        ListChecks().then((c) => setChecksList(c ?? []));
     }, []);
 
     useEffect(() => {
@@ -144,6 +151,7 @@ function App() {
         setExplanation("");
         setExplainError("");
         setExplainedAll(false);
+        setCheckResults({});
         setSelectedCommit(null);
         setCommitFiles([]);
         if (next === "history" && commits.length === 0) {
@@ -158,6 +166,7 @@ function App() {
         setExplanation("");
         setExplainError("");
         setExplainedAll(false);
+        setCheckResults({});
         CommitFiles(commit.Hash).then((f) => setCommitFiles(f ?? []));
     }
 
@@ -169,6 +178,7 @@ function App() {
         setExplanation("");
         setExplainError("");
         setExplainedAll(false);
+        setCheckResults({});
     }
 
     function handleRailScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -217,6 +227,23 @@ function App() {
             .then(setExplanation)
             .catch((err) => setExplainError(String(err)))
             .finally(() => setExplaining(false));
+    }
+
+    function runCheck(check: checks.Check) {
+        if (mode === "history") {
+            if (!selectedCommit || commitFiles.length === 0) {
+                return;
+            }
+        } else if (files.length === 0) {
+            return;
+        }
+        setCheckResults((prev) => ({...prev, [check.Name]: {running: true, result: "", error: ""}}));
+        const request = mode === "history" && selectedCommit
+            ? RunCheckOnAllCommitFiles(selectedCommit.Hash, check.Name)
+            : RunCheckAll(check.Name);
+        request
+            .then((result) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result, error: ""}})))
+            .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result: "", error: String(err)}})));
     }
 
     function openConfigDialog() {
@@ -371,6 +398,29 @@ function App() {
                             {explaining && explainedAll ? "Explaining…" : "Explain All"}
                         </button>
                     </div>
+                    {checksList.length > 0 && (
+                        <div className="check-buttons-row">
+                            {checksList.map((check) => {
+                                const state = checkResults[check.Name];
+                                const disabled = !ready
+                                    || (mode === "history"
+                                        ? !selectedCommit || commitFiles.length === 0
+                                        : files.length === 0)
+                                    || (state?.running ?? false);
+                                return (
+                                    <button
+                                        key={check.Name}
+                                        className="check-button"
+                                        title={check.Description}
+                                        disabled={disabled}
+                                        onClick={() => runCheck(check)}
+                                    >
+                                        {state?.running ? `${check.Name}…` : check.Name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                     {!explaining && !explanation && !explainError && (
                         <p className="placeholder">
                             {selectedPath
@@ -390,6 +440,26 @@ function App() {
                     {explanation && (
                         <div className="markdown-body">
                             <ReactMarkdown>{explanation}</ReactMarkdown>
+                        </div>
+                    )}
+                    {Object.keys(checkResults).length > 0 && (
+                        <div className="check-results-box">
+                            {Object.entries(checkResults).map(([name, state]) => (
+                                <div key={name} className="check-result">
+                                    <p className="check-result-heading"><strong>{name}</strong></p>
+                                    {state.running && (
+                                        <p className="placeholder">Running…</p>
+                                    )}
+                                    {state.error && (
+                                        <p className="explain-error">{state.error}</p>
+                                    )}
+                                    {!state.running && !state.error && state.result && (
+                                        <div className="markdown-body">
+                                            <ReactMarkdown>{state.result}</ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

@@ -10,5 +10,12 @@
   "author": {
     "name": "Giacomo Stelluti Scala",
     "email": "gsscoder@gmail.com"
+  },
+  "info": {
+    "productVersion": "1.0.5",
+    "companyName": "koder0x",
+    "productName": "Magik Diff",
+    "copyright": "Copyright © 2026 koder0x",
+    "comments": ""
   }
 }

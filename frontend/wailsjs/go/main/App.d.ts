@@ -3,6 +3,7 @@
 import {gitdiff} from '../models';
 import {diffparse} from '../models';
 import {config} from '../models';
+import {checks} from '../models';
 
 export function APIKeyUsedFallback():Promise<boolean>;
 
@@ -28,7 +29,13 @@ export function Greet(arg1:string):Promise<string>;
 
 export function HasAPIKey():Promise<boolean>;
 
+export function ListChecks():Promise<Array<checks.Check>>;
+
 export function RecentCommits(arg1:number,arg2:number):Promise<Array<gitdiff.Commit>>;
+
+export function RunCheckAll(arg1:string):Promise<string>;
+
+export function RunCheckOnAllCommitFiles(arg1:string,arg2:string):Promise<string>;
 
 export function SaveConfig(arg1:config.Config):Promise<void>;
 
