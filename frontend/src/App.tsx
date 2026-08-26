@@ -67,6 +67,7 @@ function App() {
     const [explainedCount, setExplainedCount] = useState(0);
     const [explanationExpanded, setExplanationExpanded] = useState(false);
     const [explainWidth, setExplainWidth] = useState(380);
+    const [railWidth, setRailWidth] = useState(240);
 
     const startResize = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -76,6 +77,23 @@ function App() {
             const next = startWidth - (moveEvent.clientX - startX);
             const max = window.innerWidth - 240 - 200;
             setExplainWidth(Math.min(Math.max(next, 240), Math.max(max, 240)));
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
+
+    const startRailResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = railWidth;
+        const onMove = (moveEvent: MouseEvent) => {
+            const next = startWidth + (moveEvent.clientX - startX);
+            const max = window.innerWidth - explainWidth - 300;
+            setRailWidth(Math.min(Math.max(next, 160), Math.max(max, 160)));
         };
         const onUp = () => {
             window.removeEventListener("mousemove", onMove);
@@ -350,7 +368,7 @@ function App() {
             <div
                 id="App"
                 className={explanationExpanded ? "explanation-expanded" : undefined}
-                style={{"--explain-width": `${explainWidth}px`} as React.CSSProperties}
+                style={{"--explain-width": `${explainWidth}px`, "--rail-width": `${railWidth}px`} as React.CSSProperties}
             >
                 <div className="rail" onScroll={handleRailScroll}>
                     <div className="rail-tabs">
@@ -393,6 +411,7 @@ function App() {
                         </>
                     )}
                 </div>
+                <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
                 <div className="diff-pane">
                     {!parsedDiff && (
                         <p className="placeholder">Select a file to see its diff</p>
