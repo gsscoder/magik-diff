@@ -20,7 +20,7 @@ var assets embed.FS
 // version is overridden at release build time via
 // -ldflags "-X main.version=...", kept in sync with wails.json's
 // info.productVersion.
-var version = "1.0.5"
+var version = "0.1.6"
 
 func main() {
 	if len(os.Args) > 1 {
