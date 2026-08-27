@@ -127,8 +127,14 @@
 
 .config-dialog-actions {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 8px;
+}
+
+.config-verify-success {
+    margin: 0;
+    font-size: 12px;
+    color: var(--added);
 }
 
 /* Left rail */

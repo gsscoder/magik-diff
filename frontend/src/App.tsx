@@ -8,6 +8,7 @@ import {
     CommitFiles,
     Explain,
     FileDiff,
+    GetAPIKey,
     GetConfig,
     HasAPIKey,
     ListChecks,
@@ -15,6 +16,7 @@ import {
     RunCheck,
     SaveConfig,
     SetAPIKey,
+    VerifyLLMConfig,
 } from "../wailsjs/go/main/App";
 import {checks, config, diffparse, gitdiff} from "../wailsjs/go/models";
 
@@ -136,6 +138,9 @@ function App() {
             } else if (e.key === "0") {
                 e.preventDefault();
                 setZoom(1);
+            } else if (e.key === "l" || e.key === "L") {
+                e.preventDefault();
+                openConfigDialog();
             }
         }
         window.addEventListener("keydown", handleKeyDown);
@@ -542,6 +547,14 @@ function ConfigDialog(props: {
     const [baseURL, setBaseURL] = useState(props.initialConfig.base_url);
     const [model, setModel] = useState(props.initialConfig.model);
     const [newKey, setNewKey] = useState("");
+    const [verifying, setVerifying] = useState(false);
+    const [verifyResult, setVerifyResult] = useState<"success" | string | null>(null);
+
+    useEffect(() => {
+        if (props.hasKey) {
+            GetAPIKey().then(setNewKey);
+        }
+    }, [props.hasKey]);
 
     function save() {
         const cfg = new config.Config({base_url: baseURL, model});
@@ -550,6 +563,15 @@ function ConfigDialog(props: {
             tasks.push(SetAPIKey(newKey));
         }
         Promise.all(tasks).then(props.onClose);
+    }
+
+    function verify() {
+        setVerifying(true);
+        setVerifyResult(null);
+        VerifyLLMConfig(baseURL, model, newKey)
+            .then(() => setVerifyResult("success"))
+            .catch((err) => setVerifyResult(String(err)))
+            .finally(() => setVerifying(false));
     }
 
     return (
@@ -586,9 +608,21 @@ function ConfigDialog(props: {
                     />
                 </label>
                 <div className="config-dialog-actions">
+                    <button
+                        disabled={verifying || baseURL === "" || model === "" || (!props.hasKey && newKey === "")}
+                        onClick={verify}
+                    >
+                        {verifying ? "Verifying…" : "Verify"}
+                    </button>
                     <button onClick={props.onClose}>Cancel</button>
                     <button onClick={save}>Save</button>
                 </div>
+                {verifyResult === "success" && (
+                    <p className="config-verify-success">✓ Connected successfully</p>
+                )}
+                {verifyResult && verifyResult !== "success" && (
+                    <p className="explain-error">{verifyResult}</p>
+                )}
             </div>
         </div>
     )

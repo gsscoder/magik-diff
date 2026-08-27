@@ -26,6 +26,10 @@ export function FileDiff(arg1) {
   return window['go']['main']['App']['FileDiff'](arg1);
 }
 
+export function GetAPIKey() {
+  return window['go']['main']['App']['GetAPIKey']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
@@ -56,4 +60,8 @@ export function SaveConfig(arg1) {
 
 export function SetAPIKey(arg1) {
   return window['go']['main']['App']['SetAPIKey'](arg1);
+}
+
+export function VerifyLLMConfig(arg1, arg2, arg3) {
+  return window['go']['main']['App']['VerifyLLMConfig'](arg1, arg2, arg3);
 }

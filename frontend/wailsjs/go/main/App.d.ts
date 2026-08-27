@@ -17,6 +17,8 @@ export function Explain(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<diffparse.FileDiff>;
 
+export function GetAPIKey():Promise<string>;
+
 export function GetConfig():Promise<config.Config>;
 
 export function Greet(arg1:string):Promise<string>;
@@ -32,3 +34,5 @@ export function RunCheck(arg1:string,arg2:string,arg3:Array<string>):Promise<str
 export function SaveConfig(arg1:config.Config):Promise<void>;
 
 export function SetAPIKey(arg1:string):Promise<void>;
+
+export function VerifyLLMConfig(arg1:string,arg2:string,arg3:string):Promise<void>;

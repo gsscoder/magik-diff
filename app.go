@@ -99,6 +99,26 @@ func (a *App) SetAPIKey(key string) error {
 	return config.SetAPIKey(key)
 }
 
+// GetAPIKey returns the currently stored API key, so the settings dialog can
+// prefill it for editing.
+func (a *App) GetAPIKey() (string, error) {
+	key, _ := config.GetAPIKey()
+	return key, nil
+}
+
+// VerifyLLMConfig sends a minimal chat-completions request to baseURL/model
+// using apiKey, to confirm the endpoint is reachable and credentials are
+// valid before the user saves them. If apiKey is empty, the currently
+// stored key (if any) is used instead. It returns an error describing the
+// failure, or nil on success.
+func (a *App) VerifyLLMConfig(baseURL, model, apiKey string) error {
+	if apiKey == "" {
+		apiKey, _ = config.GetAPIKey()
+	}
+	_, err := llm.Explain(baseURL, model, apiKey, "Hi")
+	return err
+}
+
 // Explain asks the configured LLM to explain the diffs of paths, scoped to
 // the working tree when hash is empty or to the given commit otherwise. A
 // single path uses the terse per-file prompt; multiple paths are combined
