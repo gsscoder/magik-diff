@@ -304,11 +304,52 @@
     position: sticky;
     top: 0;
     z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 7px 10px;
     font-weight: 600;
     color: var(--text-strong);
     background-color: var(--surface);
     border-bottom: 1px solid var(--border);
+}
+
+.diff-file-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.view-toggle {
+    display: flex;
+    flex-shrink: 0;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg);
+}
+
+.view-toggle button {
+    padding: 2px 9px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-radius: 2px;
+}
+
+.view-toggle button:hover:not(.active) {
+    color: var(--text-strong);
+    background-color: var(--surface-hover);
+}
+
+.view-toggle button.active {
+    color: var(--bg);
+    background-color: var(--accent);
 }
 
 .diff-hunk + .diff-hunk {
@@ -375,6 +416,52 @@
 .diff-line.removed .diff-hl {
     background-color: color-mix(in srgb, var(--removed) 32%, transparent);
     border-radius: 2px;
+}
+
+.split-row {
+    display: flex;
+}
+
+.split-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+}
+
+.split-cell-left {
+    border-right: 1px solid var(--border);
+}
+
+.split-cell.removed {
+    background-color: color-mix(in srgb, var(--removed) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--removed);
+}
+
+.split-cell.added {
+    background-color: color-mix(in srgb, var(--added) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--added);
+}
+
+.split-cell.removed .diff-hl {
+    background-color: color-mix(in srgb, var(--removed) 32%, transparent);
+    border-radius: 2px;
+}
+
+.split-cell.added .diff-hl {
+    background-color: color-mix(in srgb, var(--added) 32%, transparent);
+    border-radius: 2px;
+}
+
+.split-cell.split-filler {
+    background-color: var(--surface);
+    background-image: repeating-linear-gradient(
+        45deg,
+        var(--border) 0,
+        var(--border) 1px,
+        transparent 1px,
+        transparent 6px
+    );
+    opacity: 0.5;
 }
 
 /* Explanation pane */

@@ -19,6 +19,7 @@ import {
     VerifyLLMConfig,
 } from "../wailsjs/go/main/App";
 import {checks, config, diffparse, gitdiff} from "../wailsjs/go/models";
+import {splitRows} from "./splitRows";
 
 type RailMode = "changes" | "history";
 
@@ -112,6 +113,14 @@ function App() {
 
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
+    const [splitView, setSplitView] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem("magikdiff.splitView") === "1";
+        } catch {
+            return false;
+        }
+    });
+
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
     useEffect(() => {
@@ -150,6 +159,14 @@ function App() {
     useEffect(() => {
         localStorage.setItem("mdiff-zoom", String(zoom));
     }, [zoom]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem("magikdiff.splitView", splitView ? "1" : "0");
+        } catch {
+            // localStorage can throw in some contexts (e.g. private browsing)
+        }
+    }, [splitView]);
 
     function checkReadiness() {
         GetConfig().then(setCfg);
@@ -422,12 +439,30 @@ function App() {
                         <p className="placeholder">Select a file to see its diff</p>
                     )}
                     {parsedDiff && parsedDiff.Path !== "" && (
-                        <div className="diff-file-header">{parsedDiff.Path}</div>
+                        <div className="diff-file-header">
+                            <span className="diff-file-path">{parsedDiff.Path}</span>
+                            {(parsedDiff.Hunks ?? []).length > 0 && (
+                                <div className="view-toggle">
+                                    <button
+                                        className={!splitView ? "active" : ""}
+                                        onClick={() => setSplitView(false)}
+                                    >
+                                        Unified
+                                    </button>
+                                    <button
+                                        className={splitView ? "active" : ""}
+                                        onClick={() => setSplitView(true)}
+                                    >
+                                        Split
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     )}
                     {parsedDiff && (parsedDiff.Hunks ?? []).length === 0 && (
                         <p className="placeholder">No textual diff to display (untracked, binary, or rename-only)</p>
                     )}
-                    {parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
+                    {!splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
                         <div key={hi} className="diff-hunk">
                             <div className="diff-hunk-header">{hunk.Header}</div>
                             {(hunk.Lines ?? []).map((line, li) => (
@@ -438,6 +473,43 @@ function App() {
                                         {line.Type === "added" ? "+" : line.Type === "removed" ? "-" : " "}
                                     </span>
                                     <span className="diff-content">{renderLineContent(line)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                    {splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
+                        <div key={hi} className="diff-hunk">
+                            <div className="diff-hunk-header">{hunk.Header}</div>
+                            {splitRows(hunk.Lines ?? []).map((row, ri) => (
+                                <div key={ri} className="split-row">
+                                    <div
+                                        className={`split-cell split-cell-left${
+                                            row.left
+                                                ? row.left.Type === "removed" ? " removed" : ""
+                                                : " split-filler"
+                                        }`}
+                                    >
+                                        {row.left && (
+                                            <>
+                                                <span className="diff-gutter">{row.left.OldNum > 0 ? row.left.OldNum : ""}</span>
+                                                <span className="diff-content">{renderLineContent(row.left)}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div
+                                        className={`split-cell split-cell-right${
+                                            row.right
+                                                ? row.right.Type === "added" ? " added" : ""
+                                                : " split-filler"
+                                        }`}
+                                    >
+                                        {row.right && (
+                                            <>
+                                                <span className="diff-gutter">{row.right.NewNum > 0 ? row.right.NewNum : ""}</span>
+                                                <span className="diff-content">{renderLineContent(row.right)}</span>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>

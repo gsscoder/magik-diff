@@ -1,6 +1,6 @@
 # Magik Diff
 
-![version](https://img.shields.io/badge/version-0.1.6-blue)
+![version](https://img.shields.io/badge/version-0.2.0-blue)
 
 A native git diff viewer with an LLM-powered explain-on-demand pane — for one file, all tracked changes, or a past commit. Human-in-the-loop becomes AI-powered-human-in-the-loop.
 
@@ -9,6 +9,18 @@ A native git diff viewer with an LLM-powered explain-on-demand pane — for one 
 ## Why?
 
 Diff tools show you *what* changed. Magik Diff adds a right-hand pane that explains *why* it matters, scroll-locked to the diff and generated only when you ask for it — never automatically, never per-hunk. You still review and decide, the model just gets you there faster. It's read-only: it never stages, commits, or checks out anything.
+
+## Split view
+
+Each file's diff can render as unified (`+`/`-` inline) or split (old file left, new file right, changes tinted). Toggle with the Unified/Split control next to the file name — the choice is sticky across files.
+
+## Shortcuts
+
+| Keys | Action |
+| --- | --- |
+| `Ctrl/Cmd` + `L` | Open LLM configuration |
+| `Ctrl/Cmd` + `+` / `-` | Zoom in / out |
+| `Ctrl/Cmd` + `0` | Reset zoom |
 
 ## Checks
 
