@@ -18,6 +18,10 @@ export function CommitFiles(arg1) {
   return window['go']['main']['App']['CommitFiles'](arg1);
 }
 
+export function CurrentBranch() {
+  return window['go']['main']['App']['CurrentBranch']();
+}
+
 export function Explain(arg1, arg2) {
   return window['go']['main']['App']['Explain'](arg1, arg2);
 }

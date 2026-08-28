@@ -1,14 +1,5 @@
 import {useEffect, useRef, useState} from "react";
 import {Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise} from "../wailsjs/runtime/runtime";
-import {WorkingDir} from "../wailsjs/go/main/App";
-
-function FolderIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M1 4a1 1 0 0 1 1-1h3.5l1.5 1.5H14a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4z" />
-        </svg>
-    );
-}
 
 function MinimiseIcon() {
     return (
@@ -43,14 +34,15 @@ function CloseIcon() {
     );
 }
 
-function TitleBar() {
-    const [cwd, setCwd] = useState("");
-    const [maximised, setMaximised] = useState(false);
-    const resizeFrame = useRef(0);
+type TitleBarProps = {
+    onOpenDirectory: () => void;
+};
 
-    useEffect(() => {
-        WorkingDir().then(setCwd);
-    }, []);
+function TitleBar({onOpenDirectory}: TitleBarProps) {
+    const [maximised, setMaximised] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const resizeFrame = useRef(0);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         function poll() {
@@ -72,11 +64,68 @@ function TitleBar() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!menuOpen) {
+            return;
+        }
+        function onClickOutside(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setMenuOpen(false);
+            }
+        }
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key === "Escape") {
+                setMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", onClickOutside);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onClickOutside);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [menuOpen]);
+
     return (
         <div className="titlebar">
+            <div className="titlebar-menu" ref={menuRef}>
+                <button
+                    type="button"
+                    className="titlebar-menu-button"
+                    aria-label="Repo menu"
+                    aria-haspopup="true"
+                    aria-expanded={menuOpen}
+                    onClick={() => setMenuOpen((open) => !open)}
+                >
+                    Repo
+                </button>
+                {menuOpen && (
+                    <div className="titlebar-menu-dropdown">
+                        <button
+                            type="button"
+                            className="titlebar-menu-item"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                onOpenDirectory();
+                            }}
+                        >
+                            Open directory...
+                        </button>
+                        <div className="titlebar-menu-separator" />
+                        <button
+                            type="button"
+                            className="titlebar-menu-item"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                Quit();
+                            }}
+                        >
+                            Exit
+                        </button>
+                    </div>
+                )}
+            </div>
             <div className="titlebar-drag" onDoubleClick={() => WindowToggleMaximise()}>
-                <FolderIcon />
-                <span className="titlebar-cwd">{cwd}</span>
                 <span className="titlebar-spacer" />
             </div>
             <div className="titlebar-controls">

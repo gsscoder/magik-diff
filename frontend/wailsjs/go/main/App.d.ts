@@ -14,6 +14,8 @@ export function CommitFileDiff(arg1:string,arg2:string):Promise<diffparse.FileDi
 
 export function CommitFiles(arg1:string):Promise<Array<gitdiff.FileChange>>;
 
+export function CurrentBranch():Promise<string>;
+
 export function Explain(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<diffparse.FileDiff>;

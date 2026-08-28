@@ -96,6 +96,17 @@ func RecentCommits(skip, count int) ([]Commit, error) {
 	return parseLog(out), nil
 }
 
+// CurrentBranch returns the name of the currently checked-out branch,
+// equivalent to `git branch --show-current`. It returns an empty string, not
+// an error, when HEAD is detached.
+func CurrentBranch() (string, error) {
+	out, err := runGit("branch", "--show-current")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // CommitFiles lists every path changed by the given commit, equivalent to
 // `git diff-tree --no-commit-id --name-status <hash>`. The --root flag makes
 // it work for the root commit too, listing all of its files as added.

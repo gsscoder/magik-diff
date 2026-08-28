@@ -19,14 +19,67 @@
     --wails-draggable: drag;
 }
 
-.titlebar-cwd {
-    margin-left: 4px;
-    font-size: 12px;
+.titlebar-menu {
+    position: relative;
+    flex-shrink: 0;
+    height: 100%;
+    --wails-draggable: no-drag;
+}
+
+.titlebar-menu-button {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 10px;
+    margin: 0;
+    background-color: transparent;
+    border: none;
     color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
+    font-size: 12px;
+    cursor: default;
+    transition: background-color var(--speed) ease, color var(--speed) ease;
+}
+
+.titlebar-menu-button:hover {
+    background-color: var(--surface-hover);
+    color: var(--text-strong);
+}
+
+.titlebar-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 160px;
+    padding: 4px;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+}
+
+.titlebar-menu-item {
+    display: block;
+    width: 100%;
+    padding: 6px 8px;
+    margin: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--text-strong);
+    font-size: 12px;
+    text-align: left;
+    cursor: default;
+    transition: background-color var(--speed) ease;
+}
+
+.titlebar-menu-item:hover {
+    background-color: var(--surface-hover);
+}
+
+.titlebar-menu-separator {
+    height: 1px;
+    margin: 4px 2px;
+    background-color: var(--border);
 }
 
 .titlebar-spacer {

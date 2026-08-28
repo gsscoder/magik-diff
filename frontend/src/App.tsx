@@ -3,6 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import './App.css';
 import TitleBar from "./TitleBar";
 import './TitleBar.css';
+import StatusBar from "./StatusBar";
+import './StatusBar.css';
 import {
     APIKeyUsedFallback,
     ChangedFiles,
@@ -414,7 +416,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                <TitleBar key={repoGeneration}/>
+                <TitleBar key={repoGeneration} onOpenDirectory={handleOpenFolder}/>
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -423,6 +425,7 @@ function App() {
                     </span>
                     <button className="readiness-banner-action" onClick={handleOpenFolder}>Open</button>
                 </div>
+                <StatusBar key={repoGeneration}/>
             </div>
         );
     }
@@ -430,7 +433,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            <TitleBar key={repoGeneration}/>
+            <TitleBar key={repoGeneration} onOpenDirectory={handleOpenFolder}/>
             <div id="App-root" style={{zoom}}>
                 {!ready && !bannerDismissed && (
                     <div className="readiness-banner">
@@ -663,6 +666,7 @@ function App() {
                     />
                 )}
             </div>
+            <StatusBar key={repoGeneration}/>
         </div>
     )
 }

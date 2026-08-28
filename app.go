@@ -56,6 +56,13 @@ func (a *App) IsGitRepo() bool {
 	return err == nil
 }
 
+// CurrentBranch returns the name of the currently checked-out branch in the
+// repo rooted at the current working directory, for display in the status
+// bar. It returns an empty string, not an error, when HEAD is detached.
+func (a *App) CurrentBranch() (string, error) {
+	return gitdiff.CurrentBranch()
+}
+
 // OpenFolderResult reports the outcome of OpenAndSwitchRepo.
 type OpenFolderResult struct {
 	// Canceled is true when the user dismissed the dialog without picking
