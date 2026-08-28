@@ -42,8 +42,16 @@ export function HasAPIKey() {
   return window['go']['main']['App']['HasAPIKey']();
 }
 
+export function IsGitRepo() {
+  return window['go']['main']['App']['IsGitRepo']();
+}
+
 export function ListChecks() {
   return window['go']['main']['App']['ListChecks']();
+}
+
+export function OpenAndSwitchRepo() {
+  return window['go']['main']['App']['OpenAndSwitchRepo']();
 }
 
 export function RecentCommits(arg1, arg2) {
@@ -64,4 +72,8 @@ export function SetAPIKey(arg1) {
 
 export function VerifyLLMConfig(arg1, arg2, arg3) {
   return window['go']['main']['App']['VerifyLLMConfig'](arg1, arg2, arg3);
+}
+
+export function WorkingDir() {
+  return window['go']['main']['App']['WorkingDir']();
 }

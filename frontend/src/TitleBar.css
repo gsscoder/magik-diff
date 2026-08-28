@@ -1,0 +1,78 @@
+.titlebar {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    flex-shrink: 0;
+    user-select: none;
+    background-color: var(--bg);
+    border-bottom: 1px solid var(--border);
+}
+
+.titlebar-drag {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding-left: 8px;
+    color: var(--text-muted);
+    --wails-draggable: drag;
+}
+
+.titlebar-cwd {
+    margin-left: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.titlebar-spacer {
+    flex: 1;
+}
+
+.titlebar-controls {
+    display: flex;
+    flex-shrink: 0;
+    height: 100%;
+    --wails-draggable: no-drag;
+}
+
+.titlebar-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 32px;
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    color: var(--text-muted);
+    cursor: default;
+    transition: background-color var(--speed) ease, color var(--speed) ease;
+    --wails-draggable: no-drag;
+}
+
+.titlebar-button:hover:not(:disabled) {
+    background-color: var(--surface-hover);
+    border-color: transparent;
+    color: var(--text-strong);
+}
+
+.titlebar-button:active:not(:disabled) {
+    background-color: var(--surface-hover);
+}
+
+.titlebar-close:hover:not(:disabled) {
+    background-color: #c42b1c;
+    color: #fff;
+}
+
+.titlebar-close:active:not(:disabled) {
+    background-color: #c42b1c;
+    color: #fff;
+}

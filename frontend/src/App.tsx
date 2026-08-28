@@ -1,6 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import './App.css';
+import TitleBar from "./TitleBar";
+import './TitleBar.css';
 import {
     APIKeyUsedFallback,
     ChangedFiles,
@@ -11,14 +13,16 @@ import {
     GetAPIKey,
     GetConfig,
     HasAPIKey,
+    IsGitRepo,
     ListChecks,
+    OpenAndSwitchRepo,
     RecentCommits,
     RunCheck,
     SaveConfig,
     SetAPIKey,
     VerifyLLMConfig,
 } from "../wailsjs/go/main/App";
-import {checks, config, diffparse, gitdiff} from "../wailsjs/go/models";
+import {checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
 import {splitRows} from "./splitRows";
 
 type RailMode = "changes" | "history";
@@ -111,6 +115,10 @@ function App() {
 
     const [bannerDismissed, setBannerDismissed] = useState(false);
 
+    const [repoValid, setRepoValid] = useState<boolean | null>(null);
+    const [openError, setOpenError] = useState<string>("");
+    const [repoGeneration, setRepoGeneration] = useState(0);
+
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
     const [splitView, setSplitView] = useState<boolean>(() => {
@@ -124,13 +132,12 @@ function App() {
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
     useEffect(() => {
-        ChangedFiles().then((f) => {
-            const loaded = f ?? [];
-            setFiles(loaded);
-            setChecked(defaultChecked(loaded));
+        IsGitRepo().then((ok) => {
+            setRepoValid(ok);
+            if (ok) {
+                loadRepoData();
+            }
         });
-        checkReadiness();
-        ListChecks().then((c) => setChecksList(c ?? []));
     }, []);
 
     useEffect(() => {
@@ -172,6 +179,16 @@ function App() {
         GetConfig().then(setCfg);
         HasAPIKey().then(setHasKey);
         APIKeyUsedFallback().then(setUsedFallback);
+    }
+
+    function loadRepoData() {
+        ChangedFiles().then((f) => {
+            const loaded = f ?? [];
+            setFiles(loaded);
+            setChecked(defaultChecked(loaded));
+        });
+        checkReadiness();
+        ListChecks().then((c) => setChecksList(c ?? []));
     }
 
     function selectFile(path: string) {
@@ -296,6 +313,22 @@ function App() {
         checkReadiness();
     }
 
+    function handleOpenFolder() {
+        OpenAndSwitchRepo().then((res: main.OpenFolderResult) => {
+            if (res.Canceled) {
+                return;
+            }
+            if (!res.Valid) {
+                setOpenError(`"${res.Path}" is not a git repository.`);
+                return;
+            }
+            setOpenError("");
+            setRepoValid(true);
+            setRepoGeneration((g) => g + 1);
+            loadRepoData();
+        });
+    }
+
     function renderLineContent(line: diffparse.Line) {
         const hl = line.Highlight;
         if (hl.End <= hl.Start) {
@@ -374,238 +407,262 @@ function App() {
         );
     }
 
-    return (
-        <div id="App-root" style={{zoom}}>
-            {!ready && !bannerDismissed && (
+    if (repoValid === null) {
+        return null;
+    }
+
+    if (!repoValid) {
+        return (
+            <div id="App-shell">
+                <TitleBar key={repoGeneration}/>
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
-                        AI features are disabled.
-                        {!hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
+                        This folder is not a git repository.
+                        {openError && ` ${openError}`}
                     </span>
-                    <button className="readiness-banner-action" onClick={openConfigDialog}>Config</button>
-                    <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
-                </div>
-            )}
-            <div
-                id="App"
-                className={explanationExpanded ? "explanation-expanded" : undefined}
-                style={{"--explain-width": `${explainWidth}px`, "--rail-width": `${railWidth}px`} as React.CSSProperties}
-            >
-                <div className="rail" onScroll={handleRailScroll}>
-                    <div className="rail-tabs">
-                        <button
-                            className={mode === "changes" ? "rail-tab selected" : "rail-tab"}
-                            onClick={() => switchMode("changes")}
-                        >
-                            Changes
-                        </button>
-                        <button
-                            className={mode === "history" ? "rail-tab selected" : "rail-tab"}
-                            onClick={() => switchMode("history")}
-                        >
-                            History
-                        </button>
-                    </div>
-                    {mode === "changes" && renderFileList(files)}
-                    {mode === "history" && !selectedCommit && (
-                        <ul className="file-list">
-                            {commits.map((commit) => (
-                                <li
-                                    key={commit.Hash}
-                                    className="commit-item"
-                                    onClick={() => selectCommit(commit)}
-                                >
-                                    <span className="commit-subject">{commit.Subject}</span>
-                                    <span className="commit-meta">
-                                        {commit.Author} · {commit.Date} · {commit.Hash.slice(0, 7)}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    {mode === "history" && selectedCommit && (
-                        <>
-                            <button className="rail-back" onClick={backToCommits}>
-                                ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
-                            </button>
-                            {renderFileList(commitFiles)}
-                        </>
-                    )}
-                </div>
-                <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
-                <div className="diff-pane">
-                    {!parsedDiff && (
-                        <p className="placeholder">Select a file to see its diff</p>
-                    )}
-                    {parsedDiff && parsedDiff.Path !== "" && (
-                        <div className="diff-file-header">
-                            <span className="diff-file-path">{parsedDiff.Path}</span>
-                            {(parsedDiff.Hunks ?? []).length > 0 && (
-                                <div className="view-toggle">
-                                    <button
-                                        className={!splitView ? "active" : ""}
-                                        onClick={() => setSplitView(false)}
-                                    >
-                                        Unified
-                                    </button>
-                                    <button
-                                        className={splitView ? "active" : ""}
-                                        onClick={() => setSplitView(true)}
-                                    >
-                                        Split
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {parsedDiff && (parsedDiff.Hunks ?? []).length === 0 && (
-                        <p className="placeholder">No textual diff to display (untracked, binary, or rename-only)</p>
-                    )}
-                    {!splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
-                        <div key={hi} className="diff-hunk">
-                            <div className="diff-hunk-header">{hunk.Header}</div>
-                            {(hunk.Lines ?? []).map((line, li) => (
-                                <div key={li} className={`diff-line ${line.Type}`}>
-                                    <span className="diff-gutter">{line.OldNum > 0 ? line.OldNum : ""}</span>
-                                    <span className="diff-gutter">{line.NewNum > 0 ? line.NewNum : ""}</span>
-                                    <span className="diff-sign">
-                                        {line.Type === "added" ? "+" : line.Type === "removed" ? "-" : " "}
-                                    </span>
-                                    <span className="diff-content">{renderLineContent(line)}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ))}
-                    {splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
-                        <div key={hi} className="diff-hunk">
-                            <div className="diff-hunk-header">{hunk.Header}</div>
-                            {splitRows(hunk.Lines ?? []).map((row, ri) => (
-                                <div key={ri} className="split-row">
-                                    <div
-                                        className={`split-cell split-cell-left${
-                                            row.left
-                                                ? row.left.Type === "removed" ? " removed" : ""
-                                                : " split-filler"
-                                        }`}
-                                    >
-                                        {row.left && (
-                                            <>
-                                                <span className="diff-gutter">{row.left.OldNum > 0 ? row.left.OldNum : ""}</span>
-                                                <span className="diff-content">{renderLineContent(row.left)}</span>
-                                            </>
-                                        )}
-                                    </div>
-                                    <div
-                                        className={`split-cell split-cell-right${
-                                            row.right
-                                                ? row.right.Type === "added" ? " added" : ""
-                                                : " split-filler"
-                                        }`}
-                                    >
-                                        {row.right && (
-                                            <>
-                                                <span className="diff-gutter">{row.right.NewNum > 0 ? row.right.NewNum : ""}</span>
-                                                <span className="diff-content">{renderLineContent(row.right)}</span>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-                {!explanationExpanded && (
-                    <div className="pane-resizer" onMouseDown={startResize} />
-                )}
-                <div className="explanation-pane">
-                    <div className="explanation-header">
-                        <button
-                            className="explanation-toggle-button"
-                            onClick={() => setExplanationExpanded(!explanationExpanded)}
-                        >
-                            {explanationExpanded ? "⇤ Collapse" : "⇥ Expand"}
-                        </button>
-                        <button
-                            className="explain-button"
-                            disabled={!ready || checked.size === 0 || explaining}
-                            onClick={explain}
-                        >
-                            {explaining ? "Explaining…" : "Explain"}
-                        </button>
-                    </div>
-                    {checksList.length > 0 && (
-                        <div className="check-buttons-row">
-                            {checksList.map((check) => {
-                                const state = checkResults[check.Name];
-                                const disabled = !ready
-                                    || checked.size === 0
-                                    || (state?.running ?? false);
-                                return (
-                                    <button
-                                        key={check.Name}
-                                        className="check-button"
-                                        title={check.Description}
-                                        disabled={disabled}
-                                        onClick={() => runCheck(check)}
-                                    >
-                                        {state?.running ? `${check.Name}…` : check.Name}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                    {!explaining && !explanation && !explainError && (
-                        <p className="placeholder">
-                            {checked.size > 0
-                                ? "Click Explain to see an explanation of the checked files"
-                                : "Check one or more files, then click Explain"}
-                        </p>
-                    )}
-                    {explaining && (
-                        <p className="placeholder">Explaining…</p>
-                    )}
-                    {explainError && (
-                        <p className="explain-error">{explainError}</p>
-                    )}
-                    {explanation && explainedCount > 1 && (
-                        <p className="explanation-scope-label">{explainedCount} files</p>
-                    )}
-                    {explanation && (
-                        <div className="markdown-body">
-                            <ReactMarkdown>{explanation}</ReactMarkdown>
-                        </div>
-                    )}
-                    {Object.keys(checkResults).length > 0 && (
-                        <div className="check-results-box">
-                            {Object.entries(checkResults).map(([name, state]) => (
-                                <div key={name} className="check-result">
-                                    <p className="check-result-heading"><strong>{name}</strong></p>
-                                    {state.running && (
-                                        <p className="placeholder">Running…</p>
-                                    )}
-                                    {state.error && (
-                                        <p className="explain-error">{state.error}</p>
-                                    )}
-                                    {!state.running && !state.error && state.result && (
-                                        <div className="markdown-body">
-                                            <ReactMarkdown>{state.result}</ReactMarkdown>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <button className="readiness-banner-action" onClick={handleOpenFolder}>Open</button>
                 </div>
             </div>
-            {configDialogOpen && (
-                <ConfigDialog
-                    initialConfig={cfg}
-                    hasKey={hasKey}
-                    usedFallback={usedFallback}
-                    onClose={closeConfigDialog}
-                />
-            )}
+        );
+    }
+
+    return (
+        <div id="App-shell">
+            {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
+            <TitleBar key={repoGeneration}/>
+            <div id="App-root" style={{zoom}}>
+                {!ready && !bannerDismissed && (
+                    <div className="readiness-banner">
+                        <span className="readiness-banner-icon">⚠</span>
+                        <span className="readiness-banner-text">
+                            AI features are disabled.
+                            {!hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
+                        </span>
+                        <button className="readiness-banner-action" onClick={openConfigDialog}>Config</button>
+                        <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
+                    </div>
+                )}
+                <div
+                    id="App"
+                    className={explanationExpanded ? "explanation-expanded" : undefined}
+                    style={{"--explain-width": `${explainWidth}px`, "--rail-width": `${railWidth}px`} as React.CSSProperties}
+                >
+                    <div className="rail" onScroll={handleRailScroll}>
+                        <div className="rail-tabs">
+                            <button
+                                className={mode === "changes" ? "rail-tab selected" : "rail-tab"}
+                                onClick={() => switchMode("changes")}
+                            >
+                                Changes
+                            </button>
+                            <button
+                                className={mode === "history" ? "rail-tab selected" : "rail-tab"}
+                                onClick={() => switchMode("history")}
+                            >
+                                History
+                            </button>
+                        </div>
+                        {mode === "changes" && renderFileList(files)}
+                        {mode === "history" && !selectedCommit && (
+                            <ul className="file-list">
+                                {commits.map((commit) => (
+                                    <li
+                                        key={commit.Hash}
+                                        className="commit-item"
+                                        onClick={() => selectCommit(commit)}
+                                    >
+                                        <span className="commit-subject">{commit.Subject}</span>
+                                        <span className="commit-meta">
+                                            {commit.Author} · {commit.Date} · {commit.Hash.slice(0, 7)}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        {mode === "history" && selectedCommit && (
+                            <>
+                                <button className="rail-back" onClick={backToCommits}>
+                                    ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
+                                </button>
+                                {renderFileList(commitFiles)}
+                            </>
+                        )}
+                    </div>
+                    <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
+                    <div className="diff-pane">
+                        {!parsedDiff && (
+                            <p className="placeholder">Select a file to see its diff</p>
+                        )}
+                        {parsedDiff && parsedDiff.Path !== "" && (
+                            <div className="diff-file-header">
+                                <span className="diff-file-path">{parsedDiff.Path}</span>
+                                {(parsedDiff.Hunks ?? []).length > 0 && (
+                                    <div className="view-toggle">
+                                        <button
+                                            className={!splitView ? "active" : ""}
+                                            onClick={() => setSplitView(false)}
+                                        >
+                                            Unified
+                                        </button>
+                                        <button
+                                            className={splitView ? "active" : ""}
+                                            onClick={() => setSplitView(true)}
+                                        >
+                                            Split
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {parsedDiff && (parsedDiff.Hunks ?? []).length === 0 && (
+                            <p className="placeholder">No textual diff to display (untracked, binary, or rename-only)</p>
+                        )}
+                        {!splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
+                            <div key={hi} className="diff-hunk">
+                                <div className="diff-hunk-header">{hunk.Header}</div>
+                                {(hunk.Lines ?? []).map((line, li) => (
+                                    <div key={li} className={`diff-line ${line.Type}`}>
+                                        <span className="diff-gutter">{line.OldNum > 0 ? line.OldNum : ""}</span>
+                                        <span className="diff-gutter">{line.NewNum > 0 ? line.NewNum : ""}</span>
+                                        <span className="diff-sign">
+                                            {line.Type === "added" ? "+" : line.Type === "removed" ? "-" : " "}
+                                        </span>
+                                        <span className="diff-content">{renderLineContent(line)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                        {splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
+                            <div key={hi} className="diff-hunk">
+                                <div className="diff-hunk-header">{hunk.Header}</div>
+                                {splitRows(hunk.Lines ?? []).map((row, ri) => (
+                                    <div key={ri} className="split-row">
+                                        <div
+                                            className={`split-cell split-cell-left${
+                                                row.left
+                                                    ? row.left.Type === "removed" ? " removed" : ""
+                                                    : " split-filler"
+                                            }`}
+                                        >
+                                            {row.left && (
+                                                <>
+                                                    <span className="diff-gutter">{row.left.OldNum > 0 ? row.left.OldNum : ""}</span>
+                                                    <span className="diff-content">{renderLineContent(row.left)}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div
+                                            className={`split-cell split-cell-right${
+                                                row.right
+                                                    ? row.right.Type === "added" ? " added" : ""
+                                                    : " split-filler"
+                                            }`}
+                                        >
+                                            {row.right && (
+                                                <>
+                                                    <span className="diff-gutter">{row.right.NewNum > 0 ? row.right.NewNum : ""}</span>
+                                                    <span className="diff-content">{renderLineContent(row.right)}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                    {!explanationExpanded && (
+                        <div className="pane-resizer" onMouseDown={startResize} />
+                    )}
+                    <div className="explanation-pane">
+                        <div className="explanation-header">
+                            <button
+                                className="explanation-toggle-button"
+                                onClick={() => setExplanationExpanded(!explanationExpanded)}
+                            >
+                                {explanationExpanded ? "⇤ Collapse" : "⇥ Expand"}
+                            </button>
+                            <button
+                                className="explain-button"
+                                disabled={!ready || checked.size === 0 || explaining}
+                                onClick={explain}
+                            >
+                                {explaining ? "Explaining…" : "Explain"}
+                            </button>
+                        </div>
+                        {checksList.length > 0 && (
+                            <div className="check-buttons-row">
+                                {checksList.map((check) => {
+                                    const state = checkResults[check.Name];
+                                    const disabled = !ready
+                                        || checked.size === 0
+                                        || (state?.running ?? false);
+                                    return (
+                                        <button
+                                            key={check.Name}
+                                            className="check-button"
+                                            title={check.Description}
+                                            disabled={disabled}
+                                            onClick={() => runCheck(check)}
+                                        >
+                                            {state?.running ? `${check.Name}…` : check.Name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {!explaining && !explanation && !explainError && (
+                            <p className="placeholder">
+                                {checked.size > 0
+                                    ? "Click Explain to see an explanation of the checked files"
+                                    : "Check one or more files, then click Explain"}
+                            </p>
+                        )}
+                        {explaining && (
+                            <p className="placeholder">Explaining…</p>
+                        )}
+                        {explainError && (
+                            <p className="explain-error">{explainError}</p>
+                        )}
+                        {explanation && explainedCount > 1 && (
+                            <p className="explanation-scope-label">{explainedCount} files</p>
+                        )}
+                        {explanation && (
+                            <div className="markdown-body">
+                                <ReactMarkdown>{explanation}</ReactMarkdown>
+                            </div>
+                        )}
+                        {Object.keys(checkResults).length > 0 && (
+                            <div className="check-results-box">
+                                {Object.entries(checkResults).map(([name, state]) => (
+                                    <div key={name} className="check-result">
+                                        <p className="check-result-heading"><strong>{name}</strong></p>
+                                        {state.running && (
+                                            <p className="placeholder">Running…</p>
+                                        )}
+                                        {state.error && (
+                                            <p className="explain-error">{state.error}</p>
+                                        )}
+                                        {!state.running && !state.error && state.result && (
+                                            <div className="markdown-body">
+                                                <ReactMarkdown>{state.result}</ReactMarkdown>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {configDialogOpen && (
+                    <ConfigDialog
+                        initialConfig={cfg}
+                        hasKey={hasKey}
+                        usedFallback={usedFallback}
+                        onClose={closeConfigDialog}
+                    />
+                )}
+            </div>
         </div>
     )
 }

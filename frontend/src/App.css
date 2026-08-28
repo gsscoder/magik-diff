@@ -1,7 +1,14 @@
-#App-root {
+#App-shell {
     display: flex;
     flex-direction: column;
     height: 100vh;
+}
+
+#App-root {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 
 #App {

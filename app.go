@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"mdiff/internal/checks"
@@ -10,6 +12,8 @@ import (
 	"mdiff/internal/diffparse"
 	"mdiff/internal/gitdiff"
 	"mdiff/internal/llm"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -31,6 +35,63 @@ func (a *App) startup(ctx context.Context) {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
+}
+
+// WorkingDir returns the current working directory the app was launched
+// from, for display in the custom title bar.
+func (a *App) WorkingDir() (string, error) {
+	return os.Getwd()
+}
+
+// IsGitRepo reports whether the current working directory is a git
+// repository root, i.e. contains a .git entry (directory or file, the
+// latter covering worktrees/submodules). It does not search parent
+// directories.
+func (a *App) IsGitRepo() bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(cwd, ".git"))
+	return err == nil
+}
+
+// OpenFolderResult reports the outcome of OpenAndSwitchRepo.
+type OpenFolderResult struct {
+	// Canceled is true when the user dismissed the dialog without picking
+	// a folder; Path and Valid are meaningless in that case.
+	Canceled bool
+	// Path is the folder the user picked, when not Canceled.
+	Path string
+	// Valid reports whether Path is a git repository (contains .git). When
+	// true, the process's working directory has already been switched to
+	// Path.
+	Valid bool
+}
+
+// OpenAndSwitchRepo shows a native folder-selection dialog. If the user
+// picks a folder containing .git, the process's working directory is
+// switched to it (so all subsequent gitdiff calls target the new repo) and
+// Valid is true. If the picked folder is not a git repository, the working
+// directory is left unchanged and Valid is false. If the user cancels the
+// dialog, Canceled is true and Path/Valid are meaningless.
+func (a *App) OpenAndSwitchRepo() (OpenFolderResult, error) {
+	path, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "Open repository folder",
+	})
+	if err != nil {
+		return OpenFolderResult{}, fmt.Errorf("open folder dialog: %w", err)
+	}
+	if path == "" {
+		return OpenFolderResult{Canceled: true}, nil
+	}
+	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
+		return OpenFolderResult{Path: path, Valid: false}, nil
+	}
+	if err := os.Chdir(path); err != nil {
+		return OpenFolderResult{}, fmt.Errorf("switch to %s: %w", path, err)
+	}
+	return OpenFolderResult{Path: path, Valid: true}, nil
 }
 
 // ChangedFiles lists every changed file in the working tree of the repo

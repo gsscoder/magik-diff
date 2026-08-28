@@ -4,6 +4,7 @@ import {gitdiff} from '../models';
 import {diffparse} from '../models';
 import {config} from '../models';
 import {checks} from '../models';
+import {main} from '../models';
 
 export function APIKeyUsedFallback():Promise<boolean>;
 
@@ -25,7 +26,11 @@ export function Greet(arg1:string):Promise<string>;
 
 export function HasAPIKey():Promise<boolean>;
 
+export function IsGitRepo():Promise<boolean>;
+
 export function ListChecks():Promise<Array<checks.Check>>;
+
+export function OpenAndSwitchRepo():Promise<main.OpenFolderResult>;
 
 export function RecentCommits(arg1:number,arg2:number):Promise<Array<gitdiff.Commit>>;
 
@@ -36,3 +41,5 @@ export function SaveConfig(arg1:config.Config):Promise<void>;
 export function SetAPIKey(arg1:string):Promise<void>;
 
 export function VerifyLLMConfig(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function WorkingDir():Promise<string>;

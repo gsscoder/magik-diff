@@ -45,14 +45,15 @@ func main() {
 
 	title := "Magik Diff"
 	if cwd, err := os.Getwd(); err == nil {
-		title = fmt.Sprintf("%s | Magik Diff", cwd)
+		title = cwd
 	}
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  title,
-		Width:  1024,
-		Height: 768,
+		Title:     title,
+		Width:     1024,
+		Height:    768,
+		Frameless: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
