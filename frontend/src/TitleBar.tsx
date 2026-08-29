@@ -38,6 +38,12 @@ type TitleBarProps = {
     onOpenDirectory: () => void;
 };
 
+declare global {
+    interface Window {
+        wails?: {flags: {enableResize: boolean; resizeEdge?: string}};
+    }
+}
+
 function TitleBar({onOpenDirectory}: TitleBarProps) {
     const [maximised, setMaximised] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -63,6 +69,22 @@ function TitleBar({onOpenDirectory}: TitleBarProps) {
             cancelAnimationFrame(resizeFrame.current);
         };
     }, []);
+
+    useEffect(() => {
+        // Frameless Wails claims a 6px band inside every window edge as a
+        // resize handle and swallows the mousedown, which kills clicks on the
+        // window buttons and shrinks the drag strip. A maximised window can't
+        // be resized anyway, so drop the band there.
+        const flags = window.wails?.flags;
+        if (!flags) {
+            return;
+        }
+        flags.enableResize = !maximised;
+        if (maximised) {
+            flags.resizeEdge = undefined;
+            document.documentElement.style.cursor = "";
+        }
+    }, [maximised]);
 
     useEffect(() => {
         if (!menuOpen) {

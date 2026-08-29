@@ -4,6 +4,9 @@
     justify-content: flex-start;
     height: 28px;
     flex-shrink: 0;
+    /* The not-a-repo layout has no growing sibling to push the bar down, and
+       a status bar stacked under the title bar reads as a second title bar. */
+    margin-top: auto;
     padding: 0 8px;
     user-select: none;
     background-color: var(--bg);

@@ -327,6 +327,20 @@ function App() {
             setOpenError("");
             setRepoValid(true);
             setRepoGeneration((g) => g + 1);
+            // The previous repo's history is meaningless once cwd switches:
+            // its commit hashes don't exist in the new repo, so every commit
+            // click would silently fail (no .catch) and look empty forever.
+            setMode("changes");
+            setSelectedCommit(null);
+            setCommitFiles([]);
+            setCommits([]);
+            setCommitsExhausted(false);
+            setSelectedPath(null);
+            setParsedDiff(null);
+            setExplanation("");
+            setExplainError("");
+            setCheckResults({});
+            setChecked(new Set());
             loadRepoData();
         });
     }
@@ -416,7 +430,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                <TitleBar key={repoGeneration} onOpenDirectory={handleOpenFolder}/>
+                <TitleBar onOpenDirectory={handleOpenFolder}/>
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -433,7 +447,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            <TitleBar key={repoGeneration} onOpenDirectory={handleOpenFolder}/>
+            <TitleBar onOpenDirectory={handleOpenFolder}/>
             <div id="App-root" style={{zoom}}>
                 {!ready && !bannerDismissed && (
                     <div className="readiness-banner">

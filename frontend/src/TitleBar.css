@@ -1,11 +1,14 @@
 .titlebar {
     display: flex;
     align-items: center;
-    height: 32px;
+    height: 40px;
     flex-shrink: 0;
     user-select: none;
     background-color: var(--bg);
     border-bottom: 1px solid var(--border);
+    /* Wails reserves the top 6px of the window as a resize edge, so the bar
+       must be taller than a stock 32px caption to keep a usable grab area. */
+    --wails-draggable: drag;
 }
 
 .titlebar-drag {
@@ -16,7 +19,6 @@
     height: 100%;
     padding-left: 8px;
     color: var(--text-muted);
-    --wails-draggable: drag;
 }
 
 .titlebar-menu {
@@ -98,7 +100,7 @@
     align-items: center;
     justify-content: center;
     width: 46px;
-    height: 32px;
+    height: 100%;
     padding: 0;
     margin: 0;
     background-color: transparent;
