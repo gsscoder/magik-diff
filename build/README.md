@@ -1,6 +1,6 @@
 # Build Directory
 
-The build directory is used to house all the build files and assets for your application. 
+The build directory holds all build files and assets for the application.
 
 The structure is:
 
@@ -11,9 +11,7 @@ The structure is:
 ## Mac
 
 The `darwin` directory holds files specific to Mac builds.
-These may be customised and used as part of the build. To return these files to the default state, simply delete them
-and
-build with `wails build`.
+These can be customised for the build. To restore them to their default state, delete them and run `wails build`.
 
 The directory contains the following files:
 
@@ -22,14 +20,10 @@ The directory contains the following files:
 
 ## Windows
 
-The `windows` directory contains the manifest and rc files used when building with `wails build`.
-These may be customised for your application. To return these files to the default state, simply delete them and
-build with `wails build`.
+The `windows` directory contains the manifest and rc files used by `wails build`.
+These can be customised for the application. To restore them to their default state, delete them and run `wails build`.
 
-- `icon.ico` - The icon used for the application. This is used when building using `wails build`. If you wish to
-  use a different icon, simply replace this file with your own. If it is missing, a new `icon.ico` file
-  will be created using the `appicon.png` file in the build directory.
-- `installer/*` - The files used to create the Windows installer. These are used when building using `wails build`.
-- `info.json` - Application details used for Windows builds. The data here will be used by the Windows installer,
-  as well as the application itself (right click the exe -> properties -> details)
+- `icon.ico` - The application icon, used when building with `wails build`. Replace it to use a different icon; if it is missing, one is generated from `appicon.png` in the build directory.
+- `installer/*` - Files used to create the Windows installer, consumed by `wails build`.
+- `info.json` - Application metadata for Windows builds, used by the installer and visible in the executable's Properties → Details tab.
 - `wails.exe.manifest` - The main application manifest file.

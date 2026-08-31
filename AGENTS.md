@@ -1,7 +1,7 @@
 # Project Overview & AI Instructions
 
 ## Project Brief
-A git diff viewer whose differentiator is an LLM explaining a diff on demand — one file, all tracked changes, or a past commit. Read-only forever: never stages, commits, or checks out. Explicitly not shaped like GitHub Desktop or LazyGit — do not converge on their layout or feature set as a safe default.
+A git diff viewer that sets itself apart with on-demand LLM diff explanations — one file, all tracked changes, or a past commit. Permanently read-only: never stages, commits, or checks out. Explicitly not shaped like GitHub Desktop or LazyGit — do not drift toward their layout or feature set as a safe default.
 
 ## Core Technologies
 Go + Wails (native desktop shell, OS webview, no bundled Chromium), React (frontend), `os/exec` (shells out to real `git`), any OpenAI-compatible HTTP endpoint (no LLM SDK)
@@ -63,19 +63,19 @@ The development documents are in the `memory-bank` dir — they primarily focus 
 - NEVER commit changes to Git history without explicit authorization
 
 ## Guardrails
-These are hard constraints, not suggestions, and they bias toward caution over speed — apply them proportionately on trivial or throwaway tasks. Where a request conflicts with a guardrail, follow the guardrail and say why.
+These are hard constraints, not suggestions, and they bias toward caution over speed — scale their application proportionately for trivial or throwaway tasks. When a request conflicts with a guardrail, follow the guardrail and say why.
 
 ### Before Implementing — Reason First
-- Surface Uncertainty, Don't Guess Through It: When requirements are ambiguous, contradictory, or incomplete, stop and ask instead of assuming intent and proceeding silently. State assumptions explicitly; if multiple readings are viable, present them rather than picking one silently. Resolve intent up front — this is what makes autonomous execution safe afterward
+- Surface Uncertainty, Don't Guess Through It: When requirements are ambiguous, contradictory, or incomplete, stop and ask rather than assuming intent and proceeding silently. State assumptions explicitly; if multiple readings are viable, present them instead of silently choosing one. Resolving intent up front is what makes autonomous execution safe afterward.
 - Plan Before Implementing: For non-trivial tasks, outline a brief approach before writing code so wrong directions surface early. For multi-step work, list the steps with a verification check for each
 
 ### Design & Scope — Code Minimally
-- Simplicity Over Abstraction: Write the simplest solution that meets the requirements. Avoid speculative features, abstractions for single-use code, unrequested configurability, and error handling for impossible cases. If a construction could be materially shorter without losing correctness, rewrite it — ask whether a senior engineer would call it overcomplicated
-- Surgical Scope: Every changed line should trace directly to the current task. Match the surrounding style even where you'd choose differently. Remove imports, variables, and comments that *your* changes made obsolete, but never modify, reformat, or delete code or comments orthogonal to the task. If you notice unrelated dead code, mention it — don't delete it
+- Simplicity Over Abstraction: Write the simplest solution that meets the requirements. Avoid speculative features, single-use abstractions, unrequested configurability, and error handling for impossible cases. If a construction could be materially shorter without sacrificing correctness, rewrite it — ask whether a senior engineer would call it overcomplicated.
+- Surgical Scope: Every changed line must trace directly to the current task. Match the surrounding style even where you would choose differently. Remove imports, variables, and comments that *your* changes made obsolete, but never modify, reformat, or delete code or comments unrelated to the task. If you spot unrelated dead code, mention it — don't delete it.
 
 ### Execution — Verify Against Goals
-- Drive Toward Success Criteria: Turn the task into checkable goals and work until they're met — e.g. "add validation" → write tests for invalid inputs, then make them pass; "fix the bug" → write a failing test that reproduces it, then make it pass. When the goal is well-defined, loop and self-verify independently rather than pausing for confirmation the criteria already answer. (This is the counterpart to *Surface Uncertainty*: clarify the goal before starting; do not re-open a settled goal mid-execution)
+- Drive Toward Success Criteria: Turn the task into checkable goals and work until they are met — e.g. "add validation" → write tests for invalid inputs, then make them pass; "fix the bug" → write a failing test reproducing it, then make it pass. When the goal is clear, loop and self-verify rather than pausing for confirmation the criteria already answer. (Counterpart to *Surface Uncertainty*: clarify the goal before starting; do not reopen a settled goal mid-execution.)
 
 ### Collaboration — Communicate Honestly
-- Honesty Over Agreement: Push back on questionable requests and defend sound technical choices instead of complying by default; avoid reflexive agreement
-- Signal Confidence Level: Indicate when a solution is a best guess versus a well-established approach, so review effort can be calibrated. (Complements `Surface Uncertainty`: if you couldn't proceed at all, you ask; if you proceeded on a judgment call, you flag it)
+- Honesty Over Agreement: Push back on questionable requests and defend sound technical choices rather than complying by default; avoid reflexive agreement.
+- Signal Confidence Level: Indicate when a solution is a best guess versus a well-established approach, so review effort can be calibrated. (Complements *Surface Uncertainty*: if you could not proceed at all, ask; if you proceeded on a judgment call, flag it.)

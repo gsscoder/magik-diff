@@ -124,9 +124,9 @@ function App() {
 
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
-    // Mirrors of state read by the repo:changed handler below, kept current
-    // on every render so that handler (subscribed once, on mount) never
-    // reads stale values without needing mode/selectedPath in its deps.
+    // Refs mirroring state consumed by the repo:changed handler below, kept
+    // current each render so the handler (subscribed once on mount) always
+    // sees the latest values without adding them to its dependency array.
     const modeRef = useRef(mode);
     modeRef.current = mode;
     const selectedPathRef = useRef(selectedPath);
@@ -151,11 +151,10 @@ function App() {
         });
     }, []);
 
-    // Live background refresh: the backend watches the repo and emits this
-    // event when its tracked state changes from outside the running app
-    // (an agent editing files, git run in another terminal, ...). Unlike
-    // loadRepoData/handleOpenFolder, this must never clobber the user's
-    // current checkbox selection, selected file, or explanation panel.
+    // Background refresh: the backend watches the repo and emits this event
+    // when tracked state changes outside the running app (an agent, another
+    // terminal, ...). Unlike loadRepoData/handleOpenFolder, this must never
+    // clobber the user's checkbox selection, selected file, or explanation panel.
     useEffect(() => {
         return EventsOn("repo:changed", handleRepoChanged);
     }, []);
@@ -365,9 +364,9 @@ function App() {
             setOpenError("");
             setRepoValid(true);
             setRepoGeneration((g) => g + 1);
-            // The previous repo's history is meaningless once cwd switches:
-            // its commit hashes don't exist in the new repo, so every commit
-            // click would silently fail (no .catch) and look empty forever.
+            // The previous repo's history is irrelevant once cwd switches:
+            // its commit hashes don't exist in the new repo, so every click
+            // would silently produce an empty result forever.
             setMode("changes");
             setSelectedCommit(null);
             setCommitFiles([]);

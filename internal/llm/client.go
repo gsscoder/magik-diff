@@ -1,8 +1,8 @@
 // Package llm provides a minimal HTTP client for OpenAI-compatible
-// chat-completions endpoints. It intentionally avoids any LLM SDK
-// dependency: requests are built and sent with the standard library's
-// net/http, per the locked architecture decision in
-// memory-bank/detailed-spec/architecture.md, section 6.
+// chat-completions endpoints. It deliberately carries no LLM SDK
+// dependency: requests are built and sent with net/http from the standard
+// library, per the locked architecture decision in section 6 of
+// memory-bank/detailed-spec/architecture.md.
 package llm
 
 import (

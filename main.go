@@ -40,7 +40,6 @@ func main() {
 		}
 	}
 
-	// Create an instance of the app structure
 	app := NewApp()
 
 	title := "Magik Diff"
@@ -48,7 +47,7 @@ func main() {
 		title = cwd
 	}
 
-	// Create application with options
+	// Launch the Wails application.
 	err := wails.Run(&options.App{
 		Title:     title,
 		Width:     1024,

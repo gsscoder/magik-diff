@@ -45,8 +45,8 @@ func (a *App) startup(ctx context.Context) {
 
 // startWatcher starts a repo watcher rooted at root, emitting a
 // "repo:changed" event to the frontend whenever the repo's tracked state
-// changes from outside the running process. It logs and returns, rather
-// than failing, if the watcher can't be started.
+// changes from outside the running process. It logs and returns on error
+// rather than failing the caller.
 func (a *App) startWatcher(root string) {
 	w, err := watch.New(root, func() {
 		runtime.EventsEmit(a.ctx, "repo:changed")
@@ -58,13 +58,8 @@ func (a *App) startWatcher(root string) {
 	a.watcher = w
 }
 
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s, It's show time!", name)
-}
-
-// WorkingDir returns the current working directory the app was launched
-// from, for display in the custom title bar.
+// WorkingDir returns the working directory the app was launched from,
+// shown in the title bar.
 func (a *App) WorkingDir() (string, error) {
 	return os.Getwd()
 }

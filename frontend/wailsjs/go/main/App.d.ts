@@ -24,8 +24,6 @@ export function GetAPIKey():Promise<string>;
 
 export function GetConfig():Promise<config.Config>;
 
-export function Greet(arg1:string):Promise<string>;
-
 export function HasAPIKey():Promise<boolean>;
 
 export function IsGitRepo():Promise<boolean>;

@@ -55,10 +55,10 @@ function TitleBar({onOpenDirectory}: TitleBarProps) {
             WindowIsMaximised().then(setMaximised);
         }
         poll();
-        // Wails v2.13 emits no window-state-changed event, so Aero-snap and
-        // Win+Up-arrow maximise/restore are only observable via the resize
-        // event they trigger; coalesce with rAF since resize fires rapidly
-        // during a live drag-resize.
+        // Wails v2.13 fires no window-state-changed event, so Aero-snap and
+        // Win+Up-arrow maximise/restore are only visible via the resize event
+        // they trigger; coalesce with rAF because resize fires rapidly during
+        // a live drag.
         function onResize() {
             cancelAnimationFrame(resizeFrame.current);
             resizeFrame.current = requestAnimationFrame(poll);
@@ -71,10 +71,10 @@ function TitleBar({onOpenDirectory}: TitleBarProps) {
     }, []);
 
     useEffect(() => {
-        // Frameless Wails claims a 6px band inside every window edge as a
-        // resize handle and swallows the mousedown, which kills clicks on the
-        // window buttons and shrinks the drag strip. A maximised window can't
-        // be resized anyway, so drop the band there.
+        // Frameless Wails reserves a 6px band inside every window edge as a
+        // resize handle and swallows its mousedown, which breaks clicks on
+        // the window buttons and shrinks the drag strip. A maximised window
+        // cannot be resized anyway, so disable the band there.
         const flags = window.wails?.flags;
         if (!flags) {
             return;
