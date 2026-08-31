@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,13 +13,15 @@ import (
 	"mdiff/internal/diffparse"
 	"mdiff/internal/gitdiff"
 	"mdiff/internal/llm"
+	"mdiff/internal/watch"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
 type App struct {
-	ctx context.Context
+	ctx     context.Context
+	watcher *watch.Watcher
 }
 
 // NewApp creates a new App application struct
@@ -30,6 +33,29 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.IsGitRepo() {
+		cwd, err := os.Getwd()
+		if err != nil {
+			slog.Error("startup: get working directory for watcher", "error", err)
+			return
+		}
+		a.startWatcher(cwd)
+	}
+}
+
+// startWatcher starts a repo watcher rooted at root, emitting a
+// "repo:changed" event to the frontend whenever the repo's tracked state
+// changes from outside the running process. It logs and returns, rather
+// than failing, if the watcher can't be started.
+func (a *App) startWatcher(root string) {
+	w, err := watch.New(root, func() {
+		runtime.EventsEmit(a.ctx, "repo:changed")
+	})
+	if err != nil {
+		slog.Error("start repo watcher", "root", root, "error", err)
+		return
+	}
+	a.watcher = w
 }
 
 // Greet returns a greeting for the given name
@@ -98,6 +124,13 @@ func (a *App) OpenAndSwitchRepo() (OpenFolderResult, error) {
 	if err := os.Chdir(path); err != nil {
 		return OpenFolderResult{}, fmt.Errorf("switch to %s: %w", path, err)
 	}
+	if a.watcher != nil {
+		if err := a.watcher.Close(); err != nil {
+			slog.Error("close previous repo watcher", "error", err)
+		}
+		a.watcher = nil
+	}
+	a.startWatcher(path)
 	return OpenFolderResult{Path: path, Valid: true}, nil
 }
 

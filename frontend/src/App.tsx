@@ -26,6 +26,7 @@ import {
 } from "../wailsjs/go/main/App";
 import {checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
 import {splitRows} from "./splitRows";
+import {EventsOn} from "../wailsjs/runtime/runtime";
 
 type RailMode = "changes" | "history";
 
@@ -123,6 +124,14 @@ function App() {
 
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
+    // Mirrors of state read by the repo:changed handler below, kept current
+    // on every render so that handler (subscribed once, on mount) never
+    // reads stale values without needing mode/selectedPath in its deps.
+    const modeRef = useRef(mode);
+    modeRef.current = mode;
+    const selectedPathRef = useRef(selectedPath);
+    selectedPathRef.current = selectedPath;
+
     const [splitView, setSplitView] = useState<boolean>(() => {
         try {
             return localStorage.getItem("magikdiff.splitView") === "1";
@@ -141,6 +150,35 @@ function App() {
             }
         });
     }, []);
+
+    // Live background refresh: the backend watches the repo and emits this
+    // event when its tracked state changes from outside the running app
+    // (an agent editing files, git run in another terminal, ...). Unlike
+    // loadRepoData/handleOpenFolder, this must never clobber the user's
+    // current checkbox selection, selected file, or explanation panel.
+    useEffect(() => {
+        return EventsOn("repo:changed", handleRepoChanged);
+    }, []);
+
+    function handleRepoChanged() {
+        ChangedFiles().then((f) => {
+            const loaded = f ?? [];
+            setFiles(loaded);
+            const paths = new Set(loaded.map((file) => file.Path));
+            setChecked((prev) => new Set([...prev].filter((p) => paths.has(p))));
+
+            const current = selectedPathRef.current;
+            if (current === null || modeRef.current !== "changes") {
+                return;
+            }
+            if (!paths.has(current)) {
+                setSelectedPath(null);
+                setParsedDiff(null);
+                return;
+            }
+            FileDiff(current).then(setParsedDiff);
+        });
+    }
 
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {

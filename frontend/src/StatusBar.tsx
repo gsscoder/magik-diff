@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react";
 import {CurrentBranch, WorkingDir} from "../wailsjs/go/main/App";
+import {EventsOn} from "../wailsjs/runtime/runtime";
 
 function FolderIcon() {
     return (
@@ -24,6 +25,15 @@ function StatusBar() {
     useEffect(() => {
         WorkingDir().then(setCwd);
         CurrentBranch().then(setBranch);
+    }, []);
+
+    // Reflects a branch switch (or repo mutation) made by an external
+    // process while the app is open.
+    useEffect(() => {
+        return EventsOn("repo:changed", () => {
+            WorkingDir().then(setCwd);
+            CurrentBranch().then(setBranch);
+        });
     }, []);
 
     return (
