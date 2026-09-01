@@ -31,8 +31,19 @@
 .pane-resizer {
     grid-column: 4;
     cursor: col-resize;
-    background-color: var(--border);
+    background-color: transparent;
     position: relative;
+}
+
+.pane-resizer::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-50%);
+    background-color: var(--border);
 }
 
 .pane-resizer::after {

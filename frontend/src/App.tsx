@@ -93,7 +93,7 @@ function App() {
     const [cfg, setCfg] = useState<config.Config>(new config.Config());
     const [hasKey, setHasKey] = useState(false);
     const [usedFallback, setUsedFallback] = useState(false);
-    const [configDialogOpen, setConfigDialogOpen] = useState(false);
+    const [modelConfigDialogOpen, setModelConfigDialogOpen] = useState(false);
 
     const [explanation, setExplanation] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
@@ -233,9 +233,9 @@ function App() {
             } else if (e.key === "0") {
                 e.preventDefault();
                 setZoom(1);
-            } else if (e.key === "l" || e.key === "L") {
+            } else if (e.key === "m" || e.key === "M") {
                 e.preventDefault();
-                openConfigDialog();
+                openModelConfigDialog();
             }
         }
         window.addEventListener("keydown", handleKeyDown);
@@ -430,12 +430,12 @@ function App() {
             .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {kind: "error", message: String(err)}})));
     }
 
-    function openConfigDialog() {
-        setConfigDialogOpen(true);
+    function openModelConfigDialog() {
+        setModelConfigDialogOpen(true);
     }
 
-    function closeConfigDialog() {
-        setConfigDialogOpen(false);
+    function closeModelConfigDialog() {
+        setModelConfigDialogOpen(false);
         checkReadiness();
     }
 
@@ -499,7 +499,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                {!zen && <TitleBar onOpenDirectory={handleOpenFolder}/>}
+                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog}/>}
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -516,7 +516,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            {!zen && <TitleBar onOpenDirectory={handleOpenFolder}/>}
+            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog}/>}
             <div id="App-root" style={{zoom}}>
                 {openError && (
                     <div className="readiness-banner">
@@ -533,7 +533,7 @@ function App() {
                             {hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
                             {!hasKey && usedFallback && " (OS keyring unavailable and no API key found in the environment.)"}
                         </span>
-                        <button className="readiness-banner-action" onClick={openConfigDialog}>Config</button>
+                        <button className="readiness-banner-action" onClick={openModelConfigDialog}>Config</button>
                         <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
                     </div>
                 )}
@@ -628,12 +628,12 @@ function App() {
                         onRunCheck={runCheck}
                     />
                 </div>
-                {configDialogOpen && (
-                    <ConfigDialog
+                {modelConfigDialogOpen && (
+                    <ModelConfigDialog
                         initialConfig={cfg}
                         hasKey={hasKey}
                         usedFallback={usedFallback}
-                        onClose={closeConfigDialog}
+                        onClose={closeModelConfigDialog}
                     />
                 )}
             </div>
@@ -642,7 +642,7 @@ function App() {
     )
 }
 
-function ConfigDialog(props: {
+function ModelConfigDialog(props: {
     initialConfig: config.Config;
     hasKey: boolean;
     usedFallback: boolean;
@@ -677,7 +677,7 @@ function ConfigDialog(props: {
     return (
         <div className="config-overlay" onClick={props.onClose}>
             <div className="config-dialog" onClick={(e) => e.stopPropagation()}>
-                <h2>Explain settings</h2>
+                <h2>Model Config</h2>
                 <label className="config-field">
                     Base URL
                     <input
