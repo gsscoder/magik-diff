@@ -65,6 +65,7 @@ function App() {
     const loadingCommits = useRef(false);
 
     const [checked, setChecked] = useState<Set<string>>(new Set());
+    const [fileFilter, setFileFilter] = useState("");
 
     const [cfg, setCfg] = useState<config.Config>(new config.Config());
     const [hasKey, setHasKey] = useState(false);
@@ -273,6 +274,7 @@ function App() {
         setSelectedCommit(null);
         setCommitFiles([]);
         setChecked(new Set());
+        setFileFilter("");
         if (next === "history" && commits.length === 0) {
             loadCommits();
         }
@@ -285,6 +287,7 @@ function App() {
         setExplanation("");
         setExplainError("");
         setCheckResults({});
+        setFileFilter("");
         CommitFiles(commit.Hash).then((f) => {
             const loaded = f ?? [];
             setCommitFiles(loaded);
@@ -301,6 +304,7 @@ function App() {
         setExplainError("");
         setCheckResults({});
         setChecked(new Set());
+        setFileFilter("");
     }
 
     function handleRailScroll(e: React.UIEvent<HTMLDivElement>) {
@@ -411,12 +415,24 @@ function App() {
 
     function toggleCheckedAll(items: gitdiff.FileChange[]) {
         const allChecked = items.length > 0 && items.every((f) => checked.has(f.Path));
-        setChecked(allChecked ? new Set() : new Set(items.map((f) => f.Path)));
+        setChecked((prev) => {
+            const next = new Set(prev);
+            for (const f of items) {
+                if (allChecked) {
+                    next.delete(f.Path);
+                } else {
+                    next.add(f.Path);
+                }
+            }
+            return next;
+        });
     }
 
     function renderFileList(items: gitdiff.FileChange[]) {
-        const allChecked = items.length > 0 && items.every((f) => checked.has(f.Path));
-        const someChecked = items.some((f) => checked.has(f.Path));
+        const needle = fileFilter.toLowerCase();
+        const visible = needle ? items.filter((f) => f.Path.toLowerCase().includes(needle)) : items;
+        const allChecked = visible.length > 0 && visible.every((f) => checked.has(f.Path));
+        const someChecked = visible.some((f) => checked.has(f.Path));
         return (
             <>
                 <div className="file-list-select-all">
@@ -428,12 +444,20 @@ function App() {
                                 el.indeterminate = !allChecked && someChecked;
                             }
                         }}
-                        onChange={() => toggleCheckedAll(items)}
+                        onChange={() => toggleCheckedAll(visible)}
                     />
                     <span>Select all</span>
+                    <span className="file-list-separator" />
+                    <input
+                        type="text"
+                        className="file-filter-input"
+                        placeholder="filter…"
+                        value={fileFilter}
+                        onChange={(e) => setFileFilter(e.target.value)}
+                    />
                 </div>
                 <ul className="file-list">
-                    {items.map((file) => {
+                    {visible.map((file) => {
                         const status = statusStyles[file.Type] ?? fallbackStatus;
                         return (
                             <li

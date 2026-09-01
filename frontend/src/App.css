@@ -182,11 +182,35 @@
 .file-list-select-all {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 14px;
+    gap: 10px;
+    padding: 6px 14px;
     font-size: 11px;
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
+}
+
+.file-list-separator {
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 0;
+    background: var(--border);
+}
+
+.file-filter-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+    outline: none;
+    padding: 1px 2px;
+}
+
+.file-filter-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
 }
 
 .file-list {

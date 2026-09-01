@@ -3,10 +3,11 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -29,12 +30,6 @@ type Check struct {
 // using the same XDG_CONFIG_HOME / ~/.config/mdiff base resolution as
 // internal/config.
 func Dir() (string, error) {
-	return checksDir()
-}
-
-// checksDir resolves the directory checks are loaded from, using the same
-// XDG_CONFIG_HOME / ~/.config/mdiff base resolution as internal/config.
-func checksDir() (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -106,14 +101,14 @@ func splitFrontmatter(raw string) (frontmatter, body string, err error) {
 // yields an empty slice. A malformed check file is skipped rather than
 // aborting the whole listing.
 func List() ([]Check, error) {
-	dir, err := checksDir()
+	dir, err := Dir()
 	if err != nil {
 		return nil, err
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return []Check{}, nil
 		}
 		return nil, err
@@ -131,8 +126,8 @@ func List() ([]Check, error) {
 		result = append(result, c)
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
+	slices.SortFunc(result, func(a, b Check) int {
+		return strings.Compare(a.Name, b.Name)
 	})
 
 	return result, nil

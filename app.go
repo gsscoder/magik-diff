@@ -18,13 +18,11 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// App struct
 type App struct {
 	ctx     context.Context
 	watcher *watch.Watcher
 }
 
-// NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{}
 }
