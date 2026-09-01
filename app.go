@@ -278,15 +278,15 @@ func explainDiff(diff string) (string, error) {
 // filePrompt builds the terse per-file explanation prompt for a single diff.
 func filePrompt(diff string) string {
 	return fmt.Sprintf(
-		"Explain what changed in the following diff and why, in plain prose. "+
-			"Be as terse as the change deserves: a trivial or mechanical change "+
+		"explain what changed in the following diff and why, in plain prose. "+
+			"be as terse as the change deserves: a trivial or mechanical change "+
 			"(e.g. one ignore-list entry, a formatting fix, a comment tweak) gets "+
-			"one short sentence, not a full breakdown. Only go longer when the "+
-			"change is genuinely substantial. No preamble, no restating the diff "+
+			"one short sentence, not a full breakdown. only go longer when the "+
+			"change is genuinely substantial. no preamble, no restating the diff "+
 			"line by line, no generic best-practice commentary, light markdown "+
 			"like **bold** or inline `code` is fine if it genuinely helps but "+
 			"don't force headings, bullet lists, or heavy structure onto a "+
-			"short or simple explanation, no summary at the end.\n\n%s",
+			"short or simple explanation, no summary at the end\n\n%s",
 		diff,
 	)
 }
@@ -296,21 +296,21 @@ func filePrompt(diff string) string {
 // of the changeset's overall intent rather than a per-file recap.
 func allChangesPrompt(diff string) string {
 	return fmt.Sprintf(
-		"The following is a combined diff covering every changed file in one "+
+		"the following is a combined diff covering every changed file in one "+
 			"changeset, each file's diff preceded by a \"--- path ---\" separator "+
-			"line. Explain the overall intent and theme of this changeset as a "+
+			"line. explain the overall intent and theme of this changeset as a "+
 			"whole, synthesizing in your own words what it accomplishes "+
-			"conceptually. Do not describe what each file does one by one, and do "+
-			"not just concatenate per-file summaries. Be as terse as the change "+
+			"conceptually. do not describe what each file does one by one, and do "+
+			"not just concatenate per-file summaries. be as terse as the change "+
 			"deserves: one coherent paragraph or two is correct for a small or "+
 			"mechanical changeset; only go longer if the change is genuinely large "+
-			"or touches many unrelated concerns. If the changeset genuinely mixes "+
+			"or touches many unrelated concerns. if the changeset genuinely mixes "+
 			"multiple unrelated concerns, briefly flag that fact, but do not "+
 			"invent a multi-concern narrative for a changeset that is actually one "+
-			"coherent thing. No preamble, no restating diff lines, light markdown "+
+			"coherent thing. no preamble, no restating diff lines, light markdown "+
 			"like **bold** or inline `code` is fine if it genuinely helps but "+
 			"don't force headings, bullet lists, or per-file breakdown onto a "+
-			"short or simple explanation, no summary at the end.\n\n%s",
+			"short or simple explanation, no summary at the end\n\n%s",
 		diff,
 	)
 }
@@ -379,11 +379,11 @@ func findCheck(checkName string) (checks.Check, error) {
 // against a single diff, embedding the check's own instructions verbatim.
 func checkPrompt(diff string, c checks.Check) string {
 	return fmt.Sprintf(
-		"You are running a specific automated check against the following "+
-			"diff. The check's instructions are:\n\n%s\n\nApply those "+
+		"you are running a specific automated check against the following "+
+			"diff. the check's instructions are:\n\n%s\n\napply those "+
 			"instructions to the diff below and report your findings in plain "+
-			"prose. No preamble, no restating the diff, no unrelated "+
-			"commentary.\n\n%s",
+			"prose. no preamble, no restating the diff, no unrelated "+
+			"commentary\n\n%s",
 		c.Prompt,
 		diff,
 	)
