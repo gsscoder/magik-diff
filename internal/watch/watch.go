@@ -8,17 +8,18 @@
 package watch
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"mdiff/internal/gitexec"
 )
 
 // debounceInterval batches a burst of filesystem events (e.g. an agent's
@@ -228,12 +229,12 @@ func (w *Watcher) checkChanged() {
 // the walk skip whole ignored subtrees without reimplementing gitignore
 // matching.
 func ignoredDirs(root string) (map[string]struct{}, error) {
-	out, err := runGit(root, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z")
+	out, err := gitexec.Run(context.Background(), root, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z")
 	if err != nil {
 		return nil, err
 	}
 	dirs := make(map[string]struct{})
-	for _, entry := range strings.Split(string(out), "\x00") {
+	for _, entry := range strings.Split(out, "\x00") {
 		if entry == "" {
 			continue
 		}
@@ -245,9 +246,7 @@ func ignoredDirs(root string) (map[string]struct{}, error) {
 // checkIgnored reports whether path is ignored by git, via
 // `git check-ignore -q <path>` (exit code 0 means ignored).
 func checkIgnored(root, path string) bool {
-	cmd := exec.Command("git", "check-ignore", "-q", path)
-	cmd.Dir = root
-	hideConsole(cmd)
+	cmd := gitexec.Command(context.Background(), root, "check-ignore", "-q", path)
 	return cmd.Run() == nil
 }
 
@@ -255,25 +254,11 @@ func checkIgnored(root, path string) bool {
 // `git status --porcelain=v1 -z` with `git rev-parse HEAD`. A repository
 // with no commits yet has no HEAD; that error is ignored silently.
 func status(root string) (string, error) {
-	statusOut, err := runGit(root, "status", "--porcelain=v1", "-z")
+	ctx := context.Background()
+	statusOut, err := gitexec.Run(ctx, root, "status", "--porcelain=v1", "-z")
 	if err != nil {
 		return "", err
 	}
-	head, _ := runGit(root, "rev-parse", "HEAD")
-	return string(statusOut) + "\x00" + string(head), nil
-}
-
-// runGit runs git with args in dir and returns its stdout. On failure it
-// returns an error including git's stderr output.
-func runGit(dir string, args ...string) ([]byte, error) {
-	cmd := exec.Command("git", args...)
-	cmd.Dir = dir
-	hideConsole(cmd)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
-	}
-	return stdout.Bytes(), nil
+	head, _ := gitexec.Run(ctx, root, "rev-parse", "HEAD")
+	return statusOut + "\x00" + head, nil
 }

@@ -95,9 +95,9 @@ func Parse(raw string) (FileDiff, error) {
 	var hunk *Hunk
 	oldNum, newNum := 0, 0
 	for _, line := range lines[1:] {
+		m := hunkHeader.FindStringSubmatch(line)
 		switch {
-		case hunkHeader.MatchString(line):
-			m := hunkHeader.FindStringSubmatch(line)
+		case m != nil:
 			oldNum, _ = strconv.Atoi(m[1])
 			newNum, _ = strconv.Atoi(m[2])
 			fd.Hunks = append(fd.Hunks, Hunk{Header: line})
@@ -174,8 +174,8 @@ func addIntralineHighlights(lines []Line) {
 // pair by trimming their common prefix and suffix (runes), returning the
 // remaining middle range of each. An empty result (identical lines, or one
 // line fully contained in the other) is normalized to the zero Span.
-func changedSpans(old, new string) (Span, Span) {
-	o, n := []rune(old), []rune(new)
+func changedSpans(oldLine, newLine string) (Span, Span) {
+	o, n := []rune(oldLine), []rune(newLine)
 	prefix := 0
 	for prefix < len(o) && prefix < len(n) && o[prefix] == n[prefix] {
 		prefix++

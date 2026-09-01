@@ -1,11 +1,13 @@
 package llm
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestExplain_Success(t *testing.T) {
@@ -28,7 +30,7 @@ func TestExplain_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	got, err := Explain(ts.URL, "gpt-4o-mini", "test-key", "explain this diff: +foo -bar")
+	got, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff: +foo -bar")
 	if err != nil {
 		t.Fatalf("Explain returned unexpected error: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestExplain_NonSuccessStatus(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			_, err := Explain(ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
+			_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
 			if err == nil {
 				t.Fatal("Explain() expected an error, got nil")
 			}
@@ -81,7 +83,7 @@ func TestExplain_MalformedJSON(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := Explain(ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
+	_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
 	if err == nil {
 		t.Fatal("Explain() expected an error for malformed JSON, got nil")
 	}
@@ -100,7 +102,7 @@ func TestExplain_ConnectionFailure(t *testing.T) {
 	unreachableURL := ts.URL
 	ts.Close()
 
-	_, err := Explain(unreachableURL, "gpt-4o-mini", "test-key", "explain this diff")
+	_, err := Explain(context.Background(), unreachableURL, "gpt-4o-mini", "test-key", "explain this diff")
 	if err == nil {
 		t.Fatal("Explain() expected a connection error, got nil")
 	}
@@ -108,5 +110,59 @@ func TestExplain_ConnectionFailure(t *testing.T) {
 	var reqErr *RequestError
 	if errors.As(err, &reqErr) {
 		t.Fatalf("expected a connection error, not a RequestError: %v", err)
+	}
+}
+
+// netTimeout reports whether err is a network-layer timeout, i.e. the
+// http.Client's own Timeout fired rather than the response completing.
+type netTimeout interface {
+	Timeout() bool
+}
+
+func TestExplain_ClientTimeout(t *testing.T) {
+	// A handler that blocks well past httpClient's timeout, so Explain must
+	// give up on its own rather than hang forever waiting for a response.
+	block := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+	defer ts.Close()
+	defer close(block)
+
+	orig := httpClient.Timeout
+	httpClient.Timeout = 50 * time.Millisecond
+	defer func() { httpClient.Timeout = orig }()
+
+	_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
+	if err == nil {
+		t.Fatal("Explain() expected a timeout error, got nil")
+	}
+
+	var timeoutErr netTimeout
+	if !errors.As(err, &timeoutErr) || !timeoutErr.Timeout() {
+		t.Fatalf("Explain() error = %v, want a network timeout error", err)
+	}
+}
+
+func TestExplain_ContextCancellation(t *testing.T) {
+	// A handler that blocks until the request context is canceled, so
+	// Explain must return promptly once ctx is canceled rather than waiting
+	// for httpClient's own (much longer) timeout.
+	block := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-block
+	}))
+	defer ts.Close()
+	defer close(block)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := Explain(ctx, ts.URL, "gpt-4o-mini", "test-key", "explain this diff")
+	if err == nil {
+		t.Fatal("Explain() expected a context deadline error, got nil")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Explain() error = %v, want it to wrap context.DeadlineExceeded", err)
 	}
 }

@@ -1,5 +1,4 @@
 import {useEffect, useRef, useState} from 'react';
-import ReactMarkdown from 'react-markdown';
 import './App.css';
 import TitleBar from "./TitleBar";
 import './TitleBar.css';
@@ -12,7 +11,6 @@ import {
     CommitFiles,
     Explain,
     FileDiff,
-    GetAPIKey,
     GetConfig,
     HasAPIKey,
     IsGitRepo,
@@ -25,7 +23,9 @@ import {
     VerifyLLMConfig,
 } from "../wailsjs/go/main/App";
 import {checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
-import {splitRows} from "./splitRows";
+import DiffPane from "./DiffPane";
+import ExplanationPane, {CheckState} from "./ExplanationPane";
+import FileList from "./FileList";
 import {
     EventsOn,
     Position,
@@ -40,26 +40,39 @@ import {
 
 type RailMode = "changes" | "history";
 
+type VerifyResult = { kind: "success" } | { kind: "error"; message: string } | null;
+
 const COMMIT_PAGE_SIZE = 200;
-
-interface FileStatus {
-    glyph: string;
-    label: string;
-    className: string;
-}
-
-// Keys match the lowercase ChangeType values serialized by the Go backend.
-const statusStyles: Record<string, FileStatus> = {
-    modified: {glyph: "●", label: "Modified", className: "status-modified"},
-    added: {glyph: "+", label: "Added", className: "status-added"},
-    deleted: {glyph: "−", label: "Deleted", className: "status-deleted"},
-    renamed: {glyph: "→", label: "Renamed", className: "status-renamed"},
-};
-
-const fallbackStatus: FileStatus = {glyph: "?", label: "Changed", className: ""};
 
 function defaultChecked(files: gitdiff.FileChange[]): Set<string> {
     return new Set(files.filter((f) => f.IsCode).map((f) => f.Path));
+}
+
+// Builds a mousedown handler that drag-resizes a pane by listening to
+// mousemove/mouseup on window. `direction` controls which way dragging
+// grows the pane (+1 when the resizer sits at the pane's leading edge,
+// -1 when it sits at the trailing edge); `max` is re-evaluated at
+// mousedown time so it can depend on other panes' current widths.
+function makeResizeHandler(
+    startWidth: number,
+    setWidth: (next: number) => void,
+    options: { direction: 1 | -1; min: number; max: () => number },
+) {
+    return (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const onMove = (moveEvent: MouseEvent) => {
+            const next = startWidth + options.direction * (moveEvent.clientX - startX);
+            const max = options.max();
+            setWidth(Math.min(Math.max(next, options.min), Math.max(max, options.min)));
+        };
+        const onUp = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
 }
 
 function App() {
@@ -85,47 +98,26 @@ function App() {
     const [explanation, setExplanation] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
+    const [diffError, setDiffError] = useState<string>("");
     const [explainedCount, setExplainedCount] = useState(0);
     const [explanationExpanded, setExplanationExpanded] = useState(false);
     const [explainWidth, setExplainWidth] = useState(380);
     const [railWidth, setRailWidth] = useState(240);
 
-    const startResize = (e: React.MouseEvent) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startWidth = explainWidth;
-        const onMove = (moveEvent: MouseEvent) => {
-            const next = startWidth - (moveEvent.clientX - startX);
-            const max = window.innerWidth - 240 - 200;
-            setExplainWidth(Math.min(Math.max(next, 240), Math.max(max, 240)));
-        };
-        const onUp = () => {
-            window.removeEventListener("mousemove", onMove);
-            window.removeEventListener("mouseup", onUp);
-        };
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
-    };
+    const startResize = makeResizeHandler(explainWidth, setExplainWidth, {
+        direction: -1,
+        min: 240,
+        max: () => window.innerWidth - 240 - 200,
+    });
 
-    const startRailResize = (e: React.MouseEvent) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startWidth = railWidth;
-        const onMove = (moveEvent: MouseEvent) => {
-            const next = startWidth + (moveEvent.clientX - startX);
-            const max = window.innerWidth - explainWidth - 300;
-            setRailWidth(Math.min(Math.max(next, 160), Math.max(max, 160)));
-        };
-        const onUp = () => {
-            window.removeEventListener("mousemove", onMove);
-            window.removeEventListener("mouseup", onUp);
-        };
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
-    };
+    const startRailResize = makeResizeHandler(railWidth, setRailWidth, {
+        direction: 1,
+        min: 160,
+        max: () => window.innerWidth - explainWidth - 300,
+    });
 
     const [checksList, setChecksList] = useState<checks.Check[]>([]);
-    const [checkResults, setCheckResults] = useState<Record<string, { running: boolean; result: string; error: string }>>({});
+    const [checkResults, setCheckResults] = useState<Record<string, CheckState>>({});
 
     const [bannerDismissed, setBannerDismissed] = useState(false);
 
@@ -147,6 +139,8 @@ function App() {
     modeRef.current = mode;
     const selectedPathRef = useRef(selectedPath);
     selectedPathRef.current = selectedPath;
+    const selectedCommitRef = useRef(selectedCommit);
+    selectedCommitRef.current = selectedCommit;
 
     const [splitView, setSplitView] = useState<boolean>(() => {
         try {
@@ -159,12 +153,17 @@ function App() {
     const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
 
     useEffect(() => {
-        IsGitRepo().then((ok) => {
-            setRepoValid(ok);
-            if (ok) {
-                loadRepoData();
-            }
-        });
+        IsGitRepo()
+            .then((ok) => {
+                setRepoValid(ok);
+                if (ok) {
+                    loadRepoData();
+                }
+            })
+            .catch((err) => {
+                setRepoValid(false);
+                setOpenError(String(err));
+            });
     }, []);
 
     // Background refresh: the backend watches the repo and emits this event
@@ -176,23 +175,43 @@ function App() {
     }, []);
 
     function handleRepoChanged() {
-        ChangedFiles().then((f) => {
-            const loaded = f ?? [];
-            setFiles(loaded);
-            const paths = new Set(loaded.map((file) => file.Path));
-            setChecked((prev) => new Set([...prev].filter((p) => paths.has(p))));
+        ChangedFiles()
+            .then((f) => {
+                const loaded = f ?? [];
+                setFiles(loaded);
+                setOpenError("");
 
-            const current = selectedPathRef.current;
-            if (current === null || modeRef.current !== "changes") {
-                return;
-            }
-            if (!paths.has(current)) {
-                setSelectedPath(null);
-                setParsedDiff(null);
-                return;
-            }
-            FileDiff(current).then(setParsedDiff);
-        });
+                if (modeRef.current !== "changes") {
+                    return;
+                }
+
+                const paths = new Set(loaded.map((file) => file.Path));
+                setChecked((prev) => new Set([...prev].filter((p) => paths.has(p))));
+
+                const current = selectedPathRef.current;
+                if (current === null) {
+                    return;
+                }
+                if (!paths.has(current)) {
+                    setSelectedPath(null);
+                    setParsedDiff(null);
+                    return;
+                }
+                FileDiff(current)
+                    .then((diff) => {
+                        if (selectedPathRef.current !== current) {
+                            return;
+                        }
+                        setParsedDiff(diff);
+                    })
+                    .catch((err) => {
+                        if (selectedPathRef.current !== current) {
+                            return;
+                        }
+                        setDiffError(String(err));
+                    });
+            })
+            .catch((err) => setOpenError(String(err)));
     }
 
     useEffect(() => {
@@ -260,11 +279,14 @@ function App() {
     }
 
     function loadRepoData() {
-        ChangedFiles().then((f) => {
-            const loaded = f ?? [];
-            setFiles(loaded);
-            setChecked(defaultChecked(loaded));
-        });
+        ChangedFiles()
+            .then((f) => {
+                const loaded = f ?? [];
+                setFiles(loaded);
+                setChecked(defaultChecked(loaded));
+                setOpenError("");
+            })
+            .catch((err) => setOpenError(String(err)));
         checkReadiness();
         ListChecks().then((c) => setChecksList(c ?? []));
     }
@@ -272,11 +294,23 @@ function App() {
     function selectFile(path: string) {
         setSelectedPath(path);
         setParsedDiff(null);
-        if (mode === "history" && selectedCommit) {
-            CommitFileDiff(selectedCommit.Hash, path).then(setParsedDiff);
-        } else {
-            FileDiff(path).then(setParsedDiff);
-        }
+        setDiffError("");
+        const request = mode === "history" && selectedCommit
+            ? CommitFileDiff(selectedCommit.Hash, path)
+            : FileDiff(path);
+        request
+            .then((diff) => {
+                if (selectedPathRef.current !== path) {
+                    return;
+                }
+                setParsedDiff(diff);
+            })
+            .catch((err) => {
+                if (selectedPathRef.current !== path) {
+                    return;
+                }
+                setDiffError(String(err));
+            });
         setExplanation("");
         setExplainError("");
     }
@@ -299,16 +333,24 @@ function App() {
             });
     }
 
+    // Common reset shared by every action that abandons the current
+    // file/commit selection: clears the diff and explanation state that
+    // would otherwise keep referring to something no longer selected.
+    function resetSelection() {
+        setSelectedPath(null);
+        setParsedDiff(null);
+        setExplanation("");
+        setExplainError("");
+        setDiffError("");
+        setCheckResults({});
+    }
+
     function switchMode(next: RailMode) {
         if (next === mode) {
             return;
         }
         setMode(next);
-        setSelectedPath(null);
-        setParsedDiff(null);
-        setExplanation("");
-        setExplainError("");
-        setCheckResults({});
+        resetSelection();
         setSelectedCommit(null);
         setCommitFiles([]);
         setChecked(new Set());
@@ -320,27 +362,30 @@ function App() {
 
     function selectCommit(commit: gitdiff.Commit) {
         setSelectedCommit(commit);
-        setSelectedPath(null);
-        setParsedDiff(null);
-        setExplanation("");
-        setExplainError("");
-        setCheckResults({});
+        resetSelection();
         setFileFilter("");
-        CommitFiles(commit.Hash).then((f) => {
-            const loaded = f ?? [];
-            setCommitFiles(loaded);
-            setChecked(defaultChecked(loaded));
-        });
+        const hash = commit.Hash;
+        CommitFiles(hash)
+            .then((f) => {
+                if (selectedCommitRef.current?.Hash !== hash) {
+                    return;
+                }
+                const loaded = f ?? [];
+                setCommitFiles(loaded);
+                setChecked(defaultChecked(loaded));
+            })
+            .catch((err) => {
+                if (selectedCommitRef.current?.Hash !== hash) {
+                    return;
+                }
+                setDiffError(String(err));
+            });
     }
 
     function backToCommits() {
         setSelectedCommit(null);
         setCommitFiles([]);
-        setSelectedPath(null);
-        setParsedDiff(null);
-        setExplanation("");
-        setExplainError("");
-        setCheckResults({});
+        resetSelection();
         setChecked(new Set());
         setFileFilter("");
     }
@@ -376,13 +421,13 @@ function App() {
         if (checked.size === 0) {
             return;
         }
-        setCheckResults((prev) => ({...prev, [check.Name]: {running: true, result: "", error: ""}}));
+        setCheckResults((prev) => ({...prev, [check.Name]: {kind: "running"}}));
         const request = mode === "history" && selectedCommit
             ? RunCheck(selectedCommit.Hash, check.Name, [...checked])
             : RunCheck("", check.Name, [...checked]);
         request
-            .then((result) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result, error: ""}})))
-            .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {running: false, result: "", error: String(err)}})));
+            .then((result) => setCheckResults((prev) => ({...prev, [check.Name]: {kind: "done", result}})))
+            .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {kind: "error", message: String(err)}})));
     }
 
     function openConfigDialog() {
@@ -414,29 +459,10 @@ function App() {
             setCommitFiles([]);
             setCommits([]);
             setCommitsExhausted(false);
-            setSelectedPath(null);
-            setParsedDiff(null);
-            setExplanation("");
-            setExplainError("");
-            setCheckResults({});
+            resetSelection();
             setChecked(new Set());
             loadRepoData();
         });
-    }
-
-    function renderLineContent(line: diffparse.Line) {
-        const hl = line.Highlight;
-        if (hl.End <= hl.Start) {
-            return line.Content;
-        }
-        const chars = [...line.Content];
-        return (
-            <>
-                {chars.slice(0, hl.Start).join("")}
-                <span className="diff-hl">{chars.slice(hl.Start, hl.End).join("")}</span>
-                {chars.slice(hl.End).join("")}
-            </>
-        );
     }
 
     function toggleChecked(path: string) {
@@ -466,62 +492,6 @@ function App() {
         });
     }
 
-    function renderFileList(items: gitdiff.FileChange[]) {
-        const needle = fileFilter.toLowerCase();
-        const visible = needle ? items.filter((f) => f.Path.toLowerCase().includes(needle)) : items;
-        const allChecked = visible.length > 0 && visible.every((f) => checked.has(f.Path));
-        const someChecked = visible.some((f) => checked.has(f.Path));
-        return (
-            <>
-                <div className="file-list-select-all">
-                    <input
-                        type="checkbox"
-                        checked={allChecked}
-                        ref={(el) => {
-                            if (el) {
-                                el.indeterminate = !allChecked && someChecked;
-                            }
-                        }}
-                        onChange={() => toggleCheckedAll(visible)}
-                    />
-                    <span>Select all</span>
-                    <span className="file-list-separator" />
-                    <input
-                        type="text"
-                        className="file-filter-input"
-                        placeholder="filter…"
-                        value={fileFilter}
-                        onChange={(e) => setFileFilter(e.target.value)}
-                    />
-                </div>
-                <ul className="file-list">
-                    {visible.map((file) => {
-                        const status = statusStyles[file.Type] ?? fallbackStatus;
-                        return (
-                            <li
-                                key={file.Path}
-                                className={file.Path === selectedPath ? "file-item selected" : "file-item"}
-                                onClick={() => selectFile(file.Path)}
-                            >
-                                <input
-                                    type="checkbox"
-                                    className="file-checkbox"
-                                    checked={checked.has(file.Path)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={() => toggleChecked(file.Path)}
-                                />
-                                <span className={`file-type ${status.className}`} title={status.label}>
-                                    {status.glyph}
-                                </span>
-                                <span className="file-path">{file.Path}</span>
-                            </li>
-                        );
-                    })}
-                </ul>
-            </>
-        );
-    }
-
     if (repoValid === null) {
         return null;
     }
@@ -548,12 +518,20 @@ function App() {
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
             {!zen && <TitleBar onOpenDirectory={handleOpenFolder}/>}
             <div id="App-root" style={{zoom}}>
+                {openError && (
+                    <div className="readiness-banner">
+                        <span className="readiness-banner-icon">⚠</span>
+                        <span className="readiness-banner-text">{openError}</span>
+                        <button className="readiness-banner-action" onClick={() => setOpenError("")}>Dismiss</button>
+                    </div>
+                )}
                 {!ready && !bannerDismissed && (
                     <div className="readiness-banner">
                         <span className="readiness-banner-icon">⚠</span>
                         <span className="readiness-banner-text">
                             AI features are disabled.
-                            {!hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
+                            {hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
+                            {!hasKey && usedFallback && " (OS keyring unavailable and no API key found in the environment.)"}
                         </span>
                         <button className="readiness-banner-action" onClick={openConfigDialog}>Config</button>
                         <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
@@ -579,7 +557,18 @@ function App() {
                                 History
                             </button>
                         </div>
-                        {mode === "changes" && renderFileList(files)}
+                        {mode === "changes" && (
+                            <FileList
+                                items={files}
+                                selectedPath={selectedPath}
+                                checked={checked}
+                                fileFilter={fileFilter}
+                                onFileFilterChange={setFileFilter}
+                                onSelectFile={selectFile}
+                                onToggleChecked={toggleChecked}
+                                onToggleCheckedAll={toggleCheckedAll}
+                            />
+                        )}
                         {mode === "history" && !selectedCommit && (
                             <ul className="file-list">
                                 {commits.map((commit) => (
@@ -601,174 +590,43 @@ function App() {
                                 <button className="rail-back" onClick={backToCommits}>
                                     ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
                                 </button>
-                                {renderFileList(commitFiles)}
+                                <FileList
+                                    items={commitFiles}
+                                    selectedPath={selectedPath}
+                                    checked={checked}
+                                    fileFilter={fileFilter}
+                                    onFileFilterChange={setFileFilter}
+                                    onSelectFile={selectFile}
+                                    onToggleChecked={toggleChecked}
+                                    onToggleCheckedAll={toggleCheckedAll}
+                                />
                             </>
                         )}
                     </div>
                     <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
-                    <div className="diff-pane">
-                        {!parsedDiff && (
-                            <p className="placeholder">Select a file to see its diff</p>
-                        )}
-                        {parsedDiff && parsedDiff.Path !== "" && (
-                            <div className="diff-file-header">
-                                <span className="diff-file-path">{parsedDiff.Path}</span>
-                                {(parsedDiff.Hunks ?? []).length > 0 && (
-                                    <div className="view-toggle">
-                                        <button
-                                            className={!splitView ? "active" : ""}
-                                            onClick={() => setSplitView(false)}
-                                        >
-                                            Unified
-                                        </button>
-                                        <button
-                                            className={splitView ? "active" : ""}
-                                            onClick={() => setSplitView(true)}
-                                        >
-                                            Split
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {parsedDiff && (parsedDiff.Hunks ?? []).length === 0 && (
-                            <p className="placeholder">No textual diff to display (untracked, binary, or rename-only)</p>
-                        )}
-                        {!splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
-                            <div key={hi} className="diff-hunk">
-                                <div className="diff-hunk-header">{hunk.Header}</div>
-                                {(hunk.Lines ?? []).map((line, li) => (
-                                    <div key={li} className={`diff-line ${line.Type}`}>
-                                        <span className="diff-gutter">{line.OldNum > 0 ? line.OldNum : ""}</span>
-                                        <span className="diff-gutter">{line.NewNum > 0 ? line.NewNum : ""}</span>
-                                        <span className="diff-sign">
-                                            {line.Type === "added" ? "+" : line.Type === "removed" ? "-" : " "}
-                                        </span>
-                                        <span className="diff-content">{renderLineContent(line)}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                        {splitView && parsedDiff && (parsedDiff.Hunks ?? []).map((hunk, hi) => (
-                            <div key={hi} className="diff-hunk">
-                                <div className="diff-hunk-header">{hunk.Header}</div>
-                                {splitRows(hunk.Lines ?? []).map((row, ri) => (
-                                    <div key={ri} className="split-row">
-                                        <div
-                                            className={`split-cell split-cell-left${
-                                                row.left
-                                                    ? row.left.Type === "removed" ? " removed" : ""
-                                                    : " split-filler"
-                                            }`}
-                                        >
-                                            {row.left && (
-                                                <>
-                                                    <span className="diff-gutter">{row.left.OldNum > 0 ? row.left.OldNum : ""}</span>
-                                                    <span className="diff-content">{renderLineContent(row.left)}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                        <div
-                                            className={`split-cell split-cell-right${
-                                                row.right
-                                                    ? row.right.Type === "added" ? " added" : ""
-                                                    : " split-filler"
-                                            }`}
-                                        >
-                                            {row.right && (
-                                                <>
-                                                    <span className="diff-gutter">{row.right.NewNum > 0 ? row.right.NewNum : ""}</span>
-                                                    <span className="diff-content">{renderLineContent(row.right)}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ))}
-                    </div>
+                    <DiffPane
+                        parsedDiff={parsedDiff}
+                        diffError={diffError}
+                        splitView={splitView}
+                        onSplitViewChange={setSplitView}
+                    />
                     {!explanationExpanded && (
                         <div className="pane-resizer" onMouseDown={startResize} />
                     )}
-                    <div className="explanation-pane">
-                        <div className="explanation-header">
-                            <button
-                                className="explanation-toggle-button"
-                                onClick={() => setExplanationExpanded(!explanationExpanded)}
-                            >
-                                {explanationExpanded ? "⇤ Collapse" : "⇥ Expand"}
-                            </button>
-                            <button
-                                className="explain-button"
-                                disabled={!ready || checked.size === 0 || explaining}
-                                onClick={explain}
-                            >
-                                {explaining ? "Explaining…" : "Explain"}
-                            </button>
-                        </div>
-                        {checksList.length > 0 && (
-                            <div className="check-buttons-row">
-                                {checksList.map((check) => {
-                                    const state = checkResults[check.Name];
-                                    const disabled = !ready
-                                        || checked.size === 0
-                                        || (state?.running ?? false);
-                                    return (
-                                        <button
-                                            key={check.Name}
-                                            className="check-button"
-                                            title={check.Description}
-                                            disabled={disabled}
-                                            onClick={() => runCheck(check)}
-                                        >
-                                            {state?.running ? `${check.Name}…` : check.Name}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        {!explaining && !explanation && !explainError && (
-                            <p className="placeholder">
-                                {checked.size > 0
-                                    ? "Click Explain to see an explanation of the checked files"
-                                    : "Check one or more files, then click Explain"}
-                            </p>
-                        )}
-                        {explaining && (
-                            <p className="placeholder">Explaining…</p>
-                        )}
-                        {explainError && (
-                            <p className="explain-error">{explainError}</p>
-                        )}
-                        {explanation && explainedCount > 1 && (
-                            <p className="explanation-scope-label">{explainedCount} files</p>
-                        )}
-                        {explanation && (
-                            <div className="markdown-body">
-                                <ReactMarkdown>{explanation}</ReactMarkdown>
-                            </div>
-                        )}
-                        {Object.keys(checkResults).length > 0 && (
-                            <div className="check-results-box">
-                                {Object.entries(checkResults).map(([name, state]) => (
-                                    <div key={name} className="check-result">
-                                        <p className="check-result-heading"><strong>{name}</strong></p>
-                                        {state.running && (
-                                            <p className="placeholder">Running…</p>
-                                        )}
-                                        {state.error && (
-                                            <p className="explain-error">{state.error}</p>
-                                        )}
-                                        {!state.running && !state.error && state.result && (
-                                            <div className="markdown-body">
-                                                <ReactMarkdown>{state.result}</ReactMarkdown>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                    <ExplanationPane
+                        explanation={explanation}
+                        explaining={explaining}
+                        explainError={explainError}
+                        explainedCount={explainedCount}
+                        explanationExpanded={explanationExpanded}
+                        onExplanationExpandedChange={setExplanationExpanded}
+                        onExplain={explain}
+                        ready={ready}
+                        checkedCount={checked.size}
+                        checksList={checksList}
+                        checkResults={checkResults}
+                        onRunCheck={runCheck}
+                    />
                 </div>
                 {configDialogOpen && (
                     <ConfigDialog
@@ -794,13 +652,7 @@ function ConfigDialog(props: {
     const [model, setModel] = useState(props.initialConfig.model);
     const [newKey, setNewKey] = useState("");
     const [verifying, setVerifying] = useState(false);
-    const [verifyResult, setVerifyResult] = useState<"success" | string | null>(null);
-
-    useEffect(() => {
-        if (props.hasKey) {
-            GetAPIKey().then(setNewKey);
-        }
-    }, [props.hasKey]);
+    const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
 
     function save() {
         const cfg = new config.Config({base_url: baseURL, model});
@@ -808,15 +660,17 @@ function ConfigDialog(props: {
         if (newKey !== "") {
             tasks.push(SetAPIKey(newKey));
         }
-        Promise.all(tasks).then(props.onClose);
+        Promise.all(tasks)
+            .then(props.onClose)
+            .catch((err) => setVerifyResult({kind: "error", message: String(err)}));
     }
 
     function verify() {
         setVerifying(true);
         setVerifyResult(null);
         VerifyLLMConfig(baseURL, model, newKey)
-            .then(() => setVerifyResult("success"))
-            .catch((err) => setVerifyResult(String(err)))
+            .then(() => setVerifyResult({kind: "success"}))
+            .catch((err) => setVerifyResult({kind: "error", message: String(err)}))
             .finally(() => setVerifying(false));
     }
 
@@ -863,11 +717,11 @@ function ConfigDialog(props: {
                     <button onClick={props.onClose}>Cancel</button>
                     <button onClick={save}>Save</button>
                 </div>
-                {verifyResult === "success" && (
+                {verifyResult?.kind === "success" && (
                     <p className="config-verify-success">✓ Connected successfully</p>
                 )}
-                {verifyResult && verifyResult !== "success" && (
-                    <p className="explain-error">{verifyResult}</p>
+                {verifyResult?.kind === "error" && (
+                    <p className="explain-error">{verifyResult.message}</p>
                 )}
             </div>
         </div>

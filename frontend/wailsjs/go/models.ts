@@ -26,7 +26,6 @@ export namespace config {
 	export class Config {
 	    base_url: string;
 	    model: string;
-	    enabled_checks: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -36,7 +35,6 @@ export namespace config {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.base_url = source["base_url"];
 	        this.model = source["model"];
-	        this.enabled_checks = source["enabled_checks"];
 	    }
 	}
 

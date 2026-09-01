@@ -21,14 +21,13 @@ const (
 
 // Config holds the non-secret application settings.
 type Config struct {
-	BaseURL       string   `json:"base_url"`
-	Model         string   `json:"model"`
-	EnabledChecks []string `json:"enabled_checks"`
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
 }
 
-// configDir returns the directory the config file lives in, creating no
+// BaseDir returns the directory the config file lives in, creating no
 // directories itself.
-func configDir() (string, error) {
+func BaseDir() (string, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -41,7 +40,7 @@ func configDir() (string, error) {
 }
 
 func configPath() (string, error) {
-	dir, err := configDir()
+	dir, err := BaseDir()
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +72,7 @@ func Load() (Config, error) {
 
 // Save writes the config file, creating its parent directory if needed.
 func Save(cfg Config) error {
-	dir, err := configDir()
+	dir, err := BaseDir()
 	if err != nil {
 		return err
 	}

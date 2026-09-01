@@ -20,8 +20,6 @@ export function Explain(arg1:string,arg2:Array<string>):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<diffparse.FileDiff>;
 
-export function GetAPIKey():Promise<string>;
-
 export function GetConfig():Promise<config.Config>;
 
 export function HasAPIKey():Promise<boolean>;

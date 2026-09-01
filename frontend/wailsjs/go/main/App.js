@@ -30,10 +30,6 @@ export function FileDiff(arg1) {
   return window['go']['main']['App']['FileDiff'](arg1);
 }
 
-export function GetAPIKey() {
-  return window['go']['main']['App']['GetAPIKey']();
-}
-
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }

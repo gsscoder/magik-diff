@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -64,7 +65,7 @@ func main() {
 	})
 
 	if err != nil {
-		println("Error:", err.Error())
+		slog.Error("wails run failed", "error", err)
 	}
 }
 
@@ -89,28 +90,31 @@ func runCheckCommand(args []string) {
 
 	src := args[1]
 	if _, err := checks.ParseFile(src); err != nil {
-		fmt.Fprintf(os.Stderr, "mdiff check add: %v\n", err)
-		os.Exit(1)
+		fatalf("mdiff check add: %v\n", err)
 	}
 
 	dir, err := checks.Dir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "mdiff check add: %v\n", err)
-		os.Exit(1)
+		fatalf("mdiff check add: %v\n", err)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "mdiff check add: %v\n", err)
-		os.Exit(1)
+		fatalf("mdiff check add: %v\n", err)
 	}
 
 	dst := filepath.Join(dir, filepath.Base(src))
 	if err := copyFile(src, dst); err != nil {
-		fmt.Fprintf(os.Stderr, "mdiff check add: %v\n", err)
-		os.Exit(1)
+		fatalf("mdiff check add: %v\n", err)
 	}
 
 	fmt.Printf("added check %q -> %s\n", filepath.Base(src), dst)
 	os.Exit(0)
+}
+
+// fatalf writes a formatted error message to stderr and exits the process
+// with status 1; it never returns to the caller.
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format, args...)
+	os.Exit(1)
 }
 
 // copyFile copies the file at src to dst, overwriting dst if it exists.

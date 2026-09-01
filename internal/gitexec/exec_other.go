@@ -1,6 +1,6 @@
 //go:build !windows
 
-package gitdiff
+package gitexec
 
 import "os/exec"
 

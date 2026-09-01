@@ -8,22 +8,25 @@ Go + Wails (native desktop shell, OS webview, no bundled Chromium), React (front
 
 ## Layers
 - `app.go`, `main.go` — Wails bootstrap and bound methods exposed to the frontend (the per-call entry points)
-- `internal/gitdiff` — shells out to `git`, parses raw diff/log/status output
+- `internal/gitdiff` — `Repo`-scoped git operations (no process-global cwd), parses raw diff/log/status output
+- `internal/gitexec` — shared context-aware git-invocation plumbing (used by `gitdiff` and `watch`)
 - `internal/diffparse` — hunk/line structuring and word-level intraline diffing
 - `internal/llm` — OpenAI-compatible HTTP client for the Explain/Explain-All calls
+- `internal/explain` — prompt construction and Explain/RunCheck orchestration, plus the in-memory explain cache
 - `internal/checks` — user-defined diff checks (loaded from `checks/*.md`)
 - `internal/config` — settings and API key persistence
-- `frontend/src` — React UI (left rail, center diff, right AI pane)
+- `internal/watch` — filesystem watcher that emits `repo:changed` events for background UI refresh
+- `frontend/src` — React UI (`App.tsx` plus `FileList`/`DiffPane`/`ExplanationPane`: left rail, center diff, right AI pane)
 
 ## Architecture
 Single native desktop binary: Go backend exposing bound methods to a React UI via Wails' Go↔JS bridge (not an HTTP server opened in a browser tab):
 - Left rail (dual-purpose) — file list in Working tree/Staged mode, commit list in History mode; one region, contents switch by tab
 - Center — unified diff with word-level intraline highlighting (common-prefix/suffix trim)
-- Right pane — AI prose, scroll-locked to the diff; hovering a paragraph highlights its source hunk
-- Explain is on-demand only (never automatic), cached by hash of (diff + model + prompt version); explain-all is one batched call per file/commit, not N per-hunk calls
+- Right pane — AI prose. Scroll-lock to the diff and hover-to-highlight-source-hunk are planned but not yet implemented
+- Explain is on-demand only (never automatic), cached by hash of (diff + model + prompt version) in an in-memory map — not persisted across restarts; explain-all is one batched call per file/commit, not N per-hunk calls
 - Hunk parsing happens server-side in Go; React only ever receives structured data, never raw diff text
 - Accepted trade-off: CGO and a per-OS webview runtime (e.g. WebView2 on Windows, not bundled in the binary) are now required — the prior plain-Go build was CGO-free with zero runtime deps; Wails was chosen anyway for the native-app UX and to use React
-- Full decision record and rejected alternatives: `memory-bank/detailed-spec/architecture.md`
+- Full decision record and rejected alternatives: `memory-bank/architecture.md`
 
 ## Maturity
 - The system is currently under development

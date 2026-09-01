@@ -23,16 +23,16 @@ function StatusBar() {
     const [branch, setBranch] = useState("");
 
     useEffect(() => {
-        WorkingDir().then(setCwd);
-        CurrentBranch().then(setBranch);
+        WorkingDir().then(setCwd).catch(() => {});
+        CurrentBranch().then(setBranch).catch(() => {});
     }, []);
 
     // Reflects a branch switch (or repo mutation) made by an external
     // process while the app is open.
     useEffect(() => {
         return EventsOn("repo:changed", () => {
-            WorkingDir().then(setCwd);
-            CurrentBranch().then(setBranch);
+            WorkingDir().then(setCwd).catch(() => {});
+            CurrentBranch().then(setBranch).catch(() => {});
         });
     }, []);
 

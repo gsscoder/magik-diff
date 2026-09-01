@@ -11,12 +11,11 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"mdiff/internal/config"
 )
 
-const (
-	configDirName = "mdiff"
-	checksDirName = "checks"
-)
+const checksDirName = "checks"
 
 // Check is a single user-defined LLM check parsed from a .md file.
 type Check struct {
@@ -30,15 +29,11 @@ type Check struct {
 // using the same XDG_CONFIG_HOME / ~/.config/mdiff base resolution as
 // internal/config.
 func Dir() (string, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	base, err := config.BaseDir()
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(base, configDirName, checksDirName), nil
+	return filepath.Join(base, checksDirName), nil
 }
 
 // ParseFile parses a single check file at path: a YAML frontmatter block

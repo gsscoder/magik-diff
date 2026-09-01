@@ -7,11 +7,21 @@ package llm
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+// requestTimeout bounds how long a single Explain call may take, so a hung
+// or slow-to-respond endpoint cannot wedge the caller forever.
+const requestTimeout = 180 * time.Second
+
+// httpClient is the client used for all Explain requests. Timeout is set
+// explicitly because http.DefaultClient has no timeout at all.
+var httpClient = &http.Client{Timeout: requestTimeout}
 
 // chatMessage is a single OpenAI-compatible chat message.
 type chatMessage struct {
@@ -52,8 +62,9 @@ func (e *RequestError) Error() string {
 //
 // baseURL is the OpenAI-compatible API root (e.g. "https://api.openai.com/v1"
 // or an httptest.Server URL in tests); "/chat/completions" is appended to it.
-// The call is non-streaming: it waits for the full JSON response body.
-func Explain(baseURL, model, apiKey, prompt string) (string, error) {
+// The call is non-streaming: it waits for the full JSON response body, up to
+// requestTimeout, and is canceled early if ctx is canceled.
+func Explain(ctx context.Context, baseURL, model, apiKey, prompt string) (string, error) {
 	reqBody := chatCompletionRequest{
 		Model: model,
 		Messages: []chatMessage{
@@ -67,7 +78,7 @@ func Explain(baseURL, model, apiKey, prompt string) (string, error) {
 		return "", fmt.Errorf("llm: failed to encode request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(payload))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("llm: failed to build request: %w", err)
 	}
@@ -76,7 +87,7 @@ func Explain(baseURL, model, apiKey, prompt string) (string, error) {
 		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := httpClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("llm: request to %s failed: %w", baseURL, err)
 	}

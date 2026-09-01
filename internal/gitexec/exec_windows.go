@@ -1,6 +1,6 @@
 //go:build windows
 
-package watch
+package gitexec
 
 import (
 	"os/exec"
