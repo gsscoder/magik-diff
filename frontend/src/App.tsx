@@ -26,7 +26,17 @@ import {
 } from "../wailsjs/go/main/App";
 import {checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
 import {splitRows} from "./splitRows";
-import {EventsOn} from "../wailsjs/runtime/runtime";
+import {
+    EventsOn,
+    Position,
+    Size,
+    WindowFullscreen,
+    WindowGetPosition,
+    WindowGetSize,
+    WindowSetPosition,
+    WindowSetSize,
+    WindowUnfullscreen,
+} from "../wailsjs/runtime/runtime";
 
 type RailMode = "changes" | "history";
 
@@ -125,6 +135,11 @@ function App() {
 
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
+    const [zen, setZen] = useState(false);
+    const zenRef = useRef(zen);
+    zenRef.current = zen;
+    const preZenBounds = useRef<{ size: Size; position: Position } | null>(null);
+
     // Refs mirroring state consumed by the repo:changed handler below, kept
     // current each render so the handler (subscribed once on mount) always
     // sees the latest values without adding them to its dependency array.
@@ -182,6 +197,11 @@ function App() {
 
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
+            if (e.key === "F11") {
+                e.preventDefault();
+                toggleZen();
+                return;
+            }
             if (!(e.ctrlKey || e.metaKey)) {
                 return;
             }
@@ -214,6 +234,24 @@ function App() {
             // localStorage can throw in some contexts (e.g. private browsing)
         }
     }, [splitView]);
+
+    function toggleZen() {
+        if (zenRef.current) {
+            WindowUnfullscreen();
+            const bounds = preZenBounds.current;
+            if (bounds) {
+                WindowSetSize(bounds.size.w, bounds.size.h);
+                WindowSetPosition(bounds.position.x, bounds.position.y);
+            }
+            setZen(false);
+            return;
+        }
+        Promise.all([WindowGetSize(), WindowGetPosition()]).then(([size, position]) => {
+            preZenBounds.current = {size, position};
+            WindowFullscreen();
+        });
+        setZen(true);
+    }
 
     function checkReadiness() {
         GetConfig().then(setCfg);
@@ -491,7 +529,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                <TitleBar onOpenDirectory={handleOpenFolder}/>
+                {!zen && <TitleBar onOpenDirectory={handleOpenFolder}/>}
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -500,7 +538,7 @@ function App() {
                     </span>
                     <button className="readiness-banner-action" onClick={handleOpenFolder}>Open</button>
                 </div>
-                <StatusBar key={repoGeneration}/>
+                {!zen && <StatusBar key={repoGeneration}/>}
             </div>
         );
     }
@@ -508,7 +546,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            <TitleBar onOpenDirectory={handleOpenFolder}/>
+            {!zen && <TitleBar onOpenDirectory={handleOpenFolder}/>}
             <div id="App-root" style={{zoom}}>
                 {!ready && !bannerDismissed && (
                     <div className="readiness-banner">
@@ -741,7 +779,7 @@ function App() {
                     />
                 )}
             </div>
-            <StatusBar key={repoGeneration}/>
+            {!zen && <StatusBar key={repoGeneration}/>}
         </div>
     )
 }
