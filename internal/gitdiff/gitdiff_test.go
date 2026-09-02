@@ -506,3 +506,26 @@ func TestCommitFileDiff_ContainsAddedAndRemovedLines(t *testing.T) {
 		t.Errorf("diff missing added line, got:\n%s", diff)
 	}
 }
+
+func TestFindRoot(t *testing.T) {
+	root, _ := initRepo(t)
+	sub := filepath.Join(root, "a", "b")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	got, err := FindRoot(ctx, sub)
+	if err != nil {
+		t.Fatalf("FindRoot(subdir): %v", err)
+	}
+	wantRoot, _ := filepath.EvalSymlinks(root)
+	gotRoot, _ := filepath.EvalSymlinks(got)
+	if gotRoot != wantRoot {
+		t.Errorf("FindRoot(subdir) = %q, want %q", got, wantRoot)
+	}
+
+	if _, err := FindRoot(ctx, t.TempDir()); err == nil {
+		t.Error("FindRoot on a non-repo directory: expected error, got nil")
+	}
+}

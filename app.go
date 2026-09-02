@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"mdiff/internal/checks"
 	"mdiff/internal/config"
@@ -19,10 +18,11 @@ import (
 )
 
 type App struct {
-	ctx     context.Context
-	repo    *gitdiff.Repo
-	watcher *watch.Watcher
-	explain *explain.Service
+	ctx       context.Context
+	repo      *gitdiff.Repo
+	repoValid bool
+	watcher   *watch.Watcher
+	explain   *explain.Service
 }
 
 func NewApp() *App {
@@ -38,10 +38,12 @@ func (a *App) startup(ctx context.Context) {
 		slog.Error("startup: get working directory", "error", err)
 		return
 	}
-	a.repo = gitdiff.New(cwd)
-	if a.IsGitRepo() {
-		a.startWatcher(cwd)
+	root, err := gitdiff.FindRoot(ctx, cwd)
+	if err != nil {
+		a.repo = gitdiff.New(cwd)
+		return
 	}
+	a.switchRepo(root)
 }
 
 // startWatcher starts a repo watcher rooted at root, emitting a
@@ -59,23 +61,35 @@ func (a *App) startWatcher(root string) {
 	a.watcher = w
 }
 
+// switchRepo makes root — which must already be a resolved repository
+// top-level directory (see gitdiff.FindRoot) — the active repo: it replaces
+// a.repo, marks the repo valid, and restarts the filesystem watcher rooted
+// there, closing any previous watcher first.
+func (a *App) switchRepo(root string) {
+	a.repo = gitdiff.New(root)
+	a.repoValid = true
+	if a.watcher != nil {
+		if err := a.watcher.Close(); err != nil {
+			slog.Error("close previous repo watcher", "error", err)
+		}
+		a.watcher = nil
+	}
+	a.startWatcher(root)
+}
+
 // WorkingDir returns the working directory the app was launched from,
 // shown in the title bar.
 func (a *App) WorkingDir() (string, error) {
 	return os.Getwd()
 }
 
-// IsGitRepo reports whether the current working directory is a git
-// repository root, i.e. contains a .git entry (directory or file, the
-// latter covering worktrees/submodules). It does not search parent
-// directories.
+// IsGitRepo reports whether the active repo — resolved at startup from the
+// process's working directory, or by OpenAndSwitchRepo — is a valid git
+// repository. Unlike a bare stat of ".git" in the working directory, the
+// resolution walks up parent directories, so launching from (or opening) a
+// subdirectory of a repo still resolves to that repo.
 func (a *App) IsGitRepo() bool {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(filepath.Join(cwd, ".git"))
-	return err == nil
+	return a.repoValid
 }
 
 // CurrentBranch returns the name of the currently checked-out branch in the
@@ -90,7 +104,9 @@ type OpenFolderResult struct {
 	// Canceled is true when the user dismissed the dialog without picking
 	// a folder; Path and Valid are meaningless in that case.
 	Canceled bool
-	// Path is the folder the user picked, when not Canceled.
+	// Path is the resolved repository root — the folder the user picked, or
+	// its nearest enclosing repo root if they picked a subdirectory — when
+	// not Canceled.
 	Path string
 	// Valid reports whether Path is a git repository (contains .git). When
 	// true, the app's active repo has already been switched to Path.
@@ -100,7 +116,8 @@ type OpenFolderResult struct {
 // OpenAndSwitchRepo shows a native folder-selection dialog. If the user
 // picks a folder containing .git, the app's active repo is switched to it
 // (so all subsequent gitdiff calls target the new repo) and Valid is true.
-// If the picked folder is not a git repository, the active repo is left
+// A picked subdirectory of a repo resolves to its enclosing repo root. If
+// the picked folder is not a git repository, the active repo is left
 // unchanged and Valid is false. If the user cancels the dialog, Canceled is
 // true and Path/Valid are meaningless.
 func (a *App) OpenAndSwitchRepo() (OpenFolderResult, error) {
@@ -113,18 +130,12 @@ func (a *App) OpenAndSwitchRepo() (OpenFolderResult, error) {
 	if path == "" {
 		return OpenFolderResult{Canceled: true}, nil
 	}
-	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
+	root, err := gitdiff.FindRoot(a.ctx, path)
+	if err != nil {
 		return OpenFolderResult{Path: path, Valid: false}, nil
 	}
-	a.repo = gitdiff.New(path)
-	if a.watcher != nil {
-		if err := a.watcher.Close(); err != nil {
-			slog.Error("close previous repo watcher", "error", err)
-		}
-		a.watcher = nil
-	}
-	a.startWatcher(path)
-	return OpenFolderResult{Path: path, Valid: true}, nil
+	a.switchRepo(root)
+	return OpenFolderResult{Path: root, Valid: true}, nil
 }
 
 // ChangedFiles lists every changed file in the working tree of the repo

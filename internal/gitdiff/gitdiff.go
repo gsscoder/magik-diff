@@ -32,6 +32,17 @@ func New(dir string) *Repo {
 	return &Repo{dir: dir}
 }
 
+// FindRoot resolves dir, or the nearest ancestor of dir that is a git
+// working tree, to that repository's top-level directory. It returns an
+// error if dir is not inside a git working tree.
+func FindRoot(ctx context.Context, dir string) (string, error) {
+	out, err := gitexec.Run(ctx, dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", fmt.Errorf("resolve repo root for %q: %w", dir, err)
+	}
+	return filepath.FromSlash(strings.TrimSpace(out)), nil
+}
+
 // ChangeType classifies how a path differs from HEAD in the working tree.
 type ChangeType string
 

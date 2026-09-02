@@ -16,6 +16,14 @@ const statusStyles: Record<string, FileStatus> = {
 
 const fallbackStatus: FileStatus = {glyph: "?", label: "Changed", className: ""};
 
+function matchesFilter(path: string, filter: string): boolean {
+    if (!/[*?]/.test(filter)) {
+        return path.toLowerCase().includes(filter.toLowerCase());
+    }
+    const pattern = filter.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
+    return new RegExp(`^${pattern}$`, "i").test(path);
+}
+
 interface FileListProps {
     items: gitdiff.FileChange[];
     selectedPath: string | null;
@@ -38,8 +46,7 @@ function FileList(props: FileListProps) {
         onToggleChecked,
         onToggleCheckedAll,
     } = props;
-    const needle = fileFilter.toLowerCase();
-    const visible = needle ? items.filter((f) => f.Path.toLowerCase().includes(needle)) : items;
+    const visible = fileFilter ? items.filter((f) => matchesFilter(f.Path, fileFilter)) : items;
     const allChecked = visible.length > 0 && visible.every((f) => checked.has(f.Path));
     const someChecked = visible.some((f) => checked.has(f.Path));
     return (
