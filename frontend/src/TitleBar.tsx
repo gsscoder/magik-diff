@@ -34,6 +34,16 @@ function CloseIcon() {
     );
 }
 
+function SidebarIcon({visible}: {visible: boolean}) {
+    return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" />
+            <path d="M6 2.5V13.5" stroke="currentColor" />
+            {visible && <rect x="2.5" y="3.5" width="3" height="9" fill="currentColor" />}
+        </svg>
+    );
+}
+
 function GearIcon() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -52,6 +62,8 @@ function GearIcon() {
 type TitleBarProps = {
     onOpenRepo: () => void;
     onOpenModelConfig: () => void;
+    railVisible: boolean;
+    onToggleRailVisible: () => void;
 };
 
 declare global {
@@ -60,7 +72,7 @@ declare global {
     }
 }
 
-function TitleBar({onOpenRepo, onOpenModelConfig}: TitleBarProps) {
+function TitleBar({onOpenRepo, onOpenModelConfig, railVisible, onToggleRailVisible}: TitleBarProps) {
     const [maximised, setMaximised] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const resizeFrame = useRef(0);
@@ -127,6 +139,17 @@ function TitleBar({onOpenRepo, onOpenModelConfig}: TitleBarProps) {
     return (
         <div className="titlebar">
             <div className="titlebar-drag" onDoubleClick={() => WindowToggleMaximise()}>
+                <button
+                    type="button"
+                    className="titlebar-button titlebar-rail-toggle"
+                    aria-label={railVisible ? "Hide changes/history panel" : "Show changes/history panel"}
+                    title={railVisible ? "Hide changes/history panel" : "Show changes/history panel"}
+                    aria-pressed={railVisible}
+                    onClick={onToggleRailVisible}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                >
+                    <SidebarIcon visible={railVisible} />
+                </button>
                 <span className="titlebar-spacer" />
             </div>
             <div className="titlebar-menu" ref={menuRef}>

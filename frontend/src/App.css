@@ -28,6 +28,10 @@
     display: none;
 }
 
+#App.rail-collapsed {
+    grid-template-columns: 0px 0px 1fr 6px var(--explain-width, 380px);
+}
+
 .pane-resizer {
     grid-column: 4;
     cursor: col-resize;
@@ -198,13 +202,6 @@
     font-size: 11px;
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
-}
-
-.file-list-separator {
-    align-self: stretch;
-    width: 1px;
-    margin: 4px 0;
-    background: var(--border);
 }
 
 .file-filter-input {
@@ -521,6 +518,12 @@
     margin-bottom: 10px;
 }
 
+.explanation-divider {
+    height: 1px;
+    margin: 0 10px 10px;
+    background-color: var(--border);
+}
+
 .explanation-toggle-button {
     color: var(--text-muted);
     border-color: var(--border);
@@ -544,6 +547,24 @@
     color: var(--bg);
     background-color: var(--text-strong);
     border-color: var(--text-strong);
+}
+
+.explanation-toggle-button,
+.explain-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+}
+
+.explain-button.explaining svg {
+    animation: explain-spin 1s linear infinite;
+}
+
+@keyframes explain-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .check-buttons-row {

@@ -128,6 +128,7 @@ function App() {
     const [zoom, setZoom] = useState(() => Number(localStorage.getItem("mdiff-zoom")) || 1);
 
     const [zen, setZen] = useState(false);
+    const [railVisible, setRailVisible] = useState(true);
     const zenRef = useRef(zen);
     zenRef.current = zen;
     const preZenBounds = useRef<{ size: Size; position: Position } | null>(null);
@@ -499,7 +500,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog}/>}
+                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -516,7 +517,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog}/>}
+            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
             <div id="App-root" style={{zoom}}>
                 {openError && (
                     <div className="readiness-banner">
@@ -539,71 +540,75 @@ function App() {
                 )}
                 <div
                     id="App"
-                    className={explanationExpanded ? "explanation-expanded" : undefined}
+                    className={[explanationExpanded && "explanation-expanded", !railVisible && "rail-collapsed"].filter(Boolean).join(" ") || undefined}
                     style={{"--explain-width": `${explainWidth}px`, "--rail-width": `${railWidth}px`} as React.CSSProperties}
                 >
-                    <div className="rail" onScroll={handleRailScroll}>
-                        <div className="rail-tabs">
-                            <button
-                                className={mode === "changes" ? "rail-tab selected" : "rail-tab"}
-                                onClick={() => switchMode("changes")}
-                            >
-                                Changes
-                            </button>
-                            <button
-                                className={mode === "history" ? "rail-tab selected" : "rail-tab"}
-                                onClick={() => switchMode("history")}
-                            >
-                                History
-                            </button>
-                        </div>
-                        {mode === "changes" && (
-                            <FileList
-                                items={files}
-                                selectedPath={selectedPath}
-                                checked={checked}
-                                fileFilter={fileFilter}
-                                onFileFilterChange={setFileFilter}
-                                onSelectFile={selectFile}
-                                onToggleChecked={toggleChecked}
-                                onToggleCheckedAll={toggleCheckedAll}
-                            />
-                        )}
-                        {mode === "history" && !selectedCommit && (
-                            <ul className="file-list">
-                                {commits.map((commit) => (
-                                    <li
-                                        key={commit.Hash}
-                                        className="commit-item"
-                                        onClick={() => selectCommit(commit)}
+                    {railVisible && (
+                        <>
+                            <div className="rail" onScroll={handleRailScroll}>
+                                <div className="rail-tabs">
+                                    <button
+                                        className={mode === "changes" ? "rail-tab selected" : "rail-tab"}
+                                        onClick={() => switchMode("changes")}
                                     >
-                                        <span className="commit-subject">{commit.Subject}</span>
-                                        <span className="commit-meta">
-                                            {commit.Author} · {commit.Date} · {commit.Hash.slice(0, 7)}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                        {mode === "history" && selectedCommit && (
-                            <>
-                                <button className="rail-back" onClick={backToCommits}>
-                                    ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
-                                </button>
-                                <FileList
-                                    items={commitFiles}
-                                    selectedPath={selectedPath}
-                                    checked={checked}
-                                    fileFilter={fileFilter}
-                                    onFileFilterChange={setFileFilter}
-                                    onSelectFile={selectFile}
-                                    onToggleChecked={toggleChecked}
-                                    onToggleCheckedAll={toggleCheckedAll}
-                                />
-                            </>
-                        )}
-                    </div>
-                    <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
+                                        Changes
+                                    </button>
+                                    <button
+                                        className={mode === "history" ? "rail-tab selected" : "rail-tab"}
+                                        onClick={() => switchMode("history")}
+                                    >
+                                        History
+                                    </button>
+                                </div>
+                                {mode === "changes" && (
+                                    <FileList
+                                        items={files}
+                                        selectedPath={selectedPath}
+                                        checked={checked}
+                                        fileFilter={fileFilter}
+                                        onFileFilterChange={setFileFilter}
+                                        onSelectFile={selectFile}
+                                        onToggleChecked={toggleChecked}
+                                        onToggleCheckedAll={toggleCheckedAll}
+                                    />
+                                )}
+                                {mode === "history" && !selectedCommit && (
+                                    <ul className="file-list">
+                                        {commits.map((commit) => (
+                                            <li
+                                                key={commit.Hash}
+                                                className="commit-item"
+                                                onClick={() => selectCommit(commit)}
+                                            >
+                                                <span className="commit-subject">{commit.Subject}</span>
+                                                <span className="commit-meta">
+                                                    {commit.Author} · {commit.Date} · {commit.Hash.slice(0, 7)}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                                {mode === "history" && selectedCommit && (
+                                    <>
+                                        <button className="rail-back" onClick={backToCommits}>
+                                            ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
+                                        </button>
+                                        <FileList
+                                            items={commitFiles}
+                                            selectedPath={selectedPath}
+                                            checked={checked}
+                                            fileFilter={fileFilter}
+                                            onFileFilterChange={setFileFilter}
+                                            onSelectFile={selectFile}
+                                            onToggleChecked={toggleChecked}
+                                            onToggleCheckedAll={toggleCheckedAll}
+                                        />
+                                    </>
+                                )}
+                            </div>
+                            <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
+                        </>
+                    )}
                     <DiffPane
                         parsedDiff={parsedDiff}
                         diffError={diffError}

@@ -55,8 +55,6 @@ function FileList(props: FileListProps) {
                     }}
                     onChange={() => onToggleCheckedAll(visible)}
                 />
-                <span>Select all</span>
-                <span className="file-list-separator" />
                 <input
                     type="text"
                     className="file-filter-input"
