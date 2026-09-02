@@ -583,6 +583,7 @@ function App() {
                                         onSelectFile={selectFile}
                                         onToggleChecked={toggleChecked}
                                         onToggleCheckedAll={toggleCheckedAll}
+                                        historyMode={false}
                                     />
                                 )}
                                 {mode === "history" && !selectedCommit && (
@@ -603,9 +604,10 @@ function App() {
                                 )}
                                 {mode === "history" && selectedCommit && (
                                     <>
-                                        <button className="rail-back" onClick={backToCommits}>
-                                            ← {selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}
-                                        </button>
+                                        <div className="rail-back">
+                                            <button className="rail-back-arrow" onClick={backToCommits} aria-label="Back to commit list">←</button>
+                                            <span className="rail-back-label">{selectedCommit.Hash.slice(0, 7)} {selectedCommit.Subject}</span>
+                                        </div>
                                         <FileList
                                             items={commitFiles}
                                             selectedPath={selectedPath}
@@ -615,6 +617,7 @@ function App() {
                                             onSelectFile={selectFile}
                                             onToggleChecked={toggleChecked}
                                             onToggleCheckedAll={toggleCheckedAll}
+                                            historyMode={true}
                                         />
                                     </>
                                 )}

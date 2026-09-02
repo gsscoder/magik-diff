@@ -77,6 +77,9 @@ func TestChangedFiles_Modified(t *testing.T) {
 	if got.OrigPath != "" {
 		t.Errorf("OrigPath = %q, want empty", got.OrigPath)
 	}
+	if got.Additions != 1 || got.Deletions != 1 {
+		t.Errorf("Additions = %d, Deletions = %d, want 1, 1", got.Additions, got.Deletions)
+	}
 }
 
 func TestChangedFiles_Added(t *testing.T) {
@@ -94,6 +97,9 @@ func TestChangedFiles_Added(t *testing.T) {
 	if got.Type != Added {
 		t.Errorf("untracked: Type = %q, want %q", got.Type, Added)
 	}
+	if got.Additions != 1 || got.Deletions != 0 {
+		t.Errorf("untracked: Additions = %d, Deletions = %d, want 1, 0", got.Additions, got.Deletions)
+	}
 
 	// Staged via `git add`.
 	runGitIn(t, dir, "add", "new.txt")
@@ -104,6 +110,9 @@ func TestChangedFiles_Added(t *testing.T) {
 	got = findChange(t, changes, "new.txt")
 	if got.Type != Added {
 		t.Errorf("staged: Type = %q, want %q", got.Type, Added)
+	}
+	if got.Additions != 1 || got.Deletions != 0 {
+		t.Errorf("staged: Additions = %d, Deletions = %d, want 1, 0", got.Additions, got.Deletions)
 	}
 }
 
@@ -125,6 +134,9 @@ func TestChangedFiles_Deleted(t *testing.T) {
 	if got.Type != Deleted {
 		t.Errorf("Type = %q, want %q", got.Type, Deleted)
 	}
+	if got.Additions != 0 || got.Deletions != 1 {
+		t.Errorf("Additions = %d, Deletions = %d, want 0, 1", got.Additions, got.Deletions)
+	}
 }
 
 func TestChangedFiles_Renamed(t *testing.T) {
@@ -134,6 +146,7 @@ func TestChangedFiles_Renamed(t *testing.T) {
 	runGitIn(t, dir, "commit", "-q", "-m", "initial")
 
 	runGitIn(t, dir, "mv", "old.txt", "renamed.txt")
+	writeFile(t, dir, "renamed.txt", "same content\nadded line\n")
 
 	changes, err := repo.ChangedFiles(context.Background())
 	if err != nil {
@@ -145,6 +158,9 @@ func TestChangedFiles_Renamed(t *testing.T) {
 	}
 	if got.OrigPath != "old.txt" {
 		t.Errorf("OrigPath = %q, want %q", got.OrigPath, "old.txt")
+	}
+	if got.Additions != 1 || got.Deletions != 0 {
+		t.Errorf("Additions = %d, Deletions = %d, want 1, 0", got.Additions, got.Deletions)
 	}
 }
 
@@ -168,8 +184,12 @@ func TestChangedFiles_UntrackedDirectoryListsFilesIndividually(t *testing.T) {
 	} {
 		findChange(t, changes, path)
 	}
-	if got := findChange(t, changes, filepath.ToSlash(filepath.Join("newdir", "one.txt"))); got.Type != Added {
+	got := findChange(t, changes, filepath.ToSlash(filepath.Join("newdir", "one.txt")))
+	if got.Type != Added {
 		t.Errorf("newdir/one.txt: Type = %q, want %q", got.Type, Added)
+	}
+	if got.Additions != 1 || got.Deletions != 0 {
+		t.Errorf("newdir/one.txt: Additions = %d, Deletions = %d, want 1, 0", got.Additions, got.Deletions)
 	}
 }
 
@@ -339,6 +359,7 @@ func TestCommitFiles_AddModifyDeleteRename(t *testing.T) {
 		t.Fatalf("remove gone.txt: %v", err)
 	}
 	runGitIn(t, dir, "mv", "old.txt", "renamed.txt")
+	writeFile(t, dir, "renamed.txt", "same content\nadded line\n")
 	runGitIn(t, dir, "add", ".")
 	runGitIn(t, dir, "commit", "-q", "-m", "changes")
 
@@ -362,6 +383,17 @@ func TestCommitFiles_AddModifyDeleteRename(t *testing.T) {
 	}
 	if got := findChange(t, changes, "renamed.txt"); got.OrigPath != "old.txt" {
 		t.Errorf("renamed.txt: OrigPath = %q, want %q", got.OrigPath, "old.txt")
+	}
+	for path, want := range map[string][2]int{
+		"keep.txt":    {1, 1},
+		"new.txt":     {1, 0},
+		"gone.txt":    {0, 1},
+		"renamed.txt": {1, 0},
+	} {
+		got := findChange(t, changes, path)
+		if got.Additions != want[0] || got.Deletions != want[1] {
+			t.Errorf("%s: Additions = %d, Deletions = %d, want %d, %d", path, got.Additions, got.Deletions, want[0], want[1])
+		}
 	}
 }
 
@@ -424,6 +456,9 @@ func TestCommitFiles_RootCommitListsAllFilesAsAdded(t *testing.T) {
 	for _, c := range changes {
 		if c.Type != Added {
 			t.Errorf("%s: Type = %q, want %q", c.Path, c.Type, Added)
+		}
+		if c.Additions != 1 || c.Deletions != 0 {
+			t.Errorf("%s: Additions = %d, Deletions = %d, want 1, 0", c.Path, c.Additions, c.Deletions)
 		}
 	}
 }

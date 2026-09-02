@@ -235,6 +235,43 @@
     box-shadow: inset 0 -2px 0 var(--accent);
 }
 
+.file-list-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border);
+}
+
+.file-list-stat--history {
+    padding-left: 34px;
+    padding-top: 3px;
+}
+
+.stat-files {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+}
+
+.stat-diff {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-added {
+    color: var(--added);
+    font-weight: bold;
+}
+
+.stat-deleted {
+    color: var(--removed);
+    font-weight: bold;
+}
+
 .file-list-select-all {
     display: flex;
     align-items: center;
@@ -344,24 +381,40 @@
 }
 
 .rail-back {
-    display: block;
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    padding: 6px 10px 3px;
+    font-size: 12px;
+}
+
+.rail-back-arrow {
     background: none;
     border: none;
-    border-radius: 0;
-    border-bottom: 1px solid var(--border);
-    color: var(--text-muted);
-    padding: 6px 10px;
-    font-size: 12px;
-    text-align: left;
+    border-radius: var(--radius-sm);
+    color: inherit;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+}
+
+.rail-back-arrow:hover {
+    background-color: var(--surface);
+    color: var(--text);
+}
+
+.rail-back-label {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.rail-back:hover {
-    background-color: var(--surface);
-    color: var(--text);
 }
 
 /* Diff pane */

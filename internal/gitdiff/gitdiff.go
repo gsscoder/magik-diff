@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"mdiff/internal/gitexec"
@@ -69,6 +70,10 @@ type FileChange struct {
 	// language, used by the frontend to default-select files for LLM calls
 	// (excluding build/config/lockfiles such as .csproj or package.json).
 	IsCode bool
+	// Additions and Deletions are the added/removed line counts from `git
+	// ... --numstat`, 0 for binary files.
+	Additions int
+	Deletions int
 }
 
 // codeExtensions holds the lowercase, dot-prefixed file extensions
@@ -193,7 +198,15 @@ func (r *Repo) CommitFiles(ctx context.Context, hash string) ([]FileChange, erro
 	if err != nil {
 		return nil, err
 	}
-	return parseNameStatus(out), nil
+	changes := parseNameStatus(out)
+
+	numstatOut, err := gitexec.Run(ctx, r.dir, "diff-tree", "--root", "--no-commit-id", "--numstat", "-z", "-r", "-M", "-m", "--first-parent", hash)
+	if err != nil {
+		return nil, err
+	}
+	mergeStats(changes, parseNumstat(numstatOut))
+
+	return changes, nil
 }
 
 // CommitFileDiff returns the raw unified diff text for path as changed by
@@ -223,7 +236,43 @@ func (r *Repo) ChangedFiles(ctx context.Context) ([]FileChange, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parsePorcelain(out), nil
+	changes := parsePorcelain(out)
+
+	numstatOut, err := gitexec.Run(ctx, r.dir, "diff", "--numstat", "-z", "HEAD")
+	if err != nil {
+		if !isUnbornHead(err) {
+			return nil, err
+		}
+		// A freshly initialized repository has no HEAD commit to diff
+		// against; the empty-tree hash stands in for "no commits", matching
+		// FileDiff's handling of the same condition.
+		numstatOut, err = gitexec.Run(ctx, r.dir, "diff", "--numstat", "-z", emptyTreeHash)
+		if err != nil {
+			return nil, err
+		}
+	}
+	stats := parseNumstat(numstatOut)
+	mergeStats(changes, stats)
+
+	// Untracked files have no HEAD blob to diff against, so they never
+	// appear in the HEAD-relative numstat above; fetch their counts
+	// individually instead.
+	for i := range changes {
+		if changes[i].Type != Added {
+			continue
+		}
+		if _, ok := stats[changes[i].Path]; ok {
+			continue
+		}
+		added, deleted, err := r.numstatAgainstEmpty(ctx, changes[i].Path)
+		if err != nil {
+			return nil, err
+		}
+		changes[i].Additions = added
+		changes[i].Deletions = deleted
+	}
+
+	return changes, nil
 }
 
 // FileDiff returns the raw unified diff text for path in the working tree,
@@ -271,6 +320,26 @@ func (r *Repo) diffAgainstEmpty(ctx context.Context, path string) (string, error
 		return "", fmt.Errorf("git diff --no-index -- %s: %w: %s", path, err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), nil
+}
+
+// numstatAgainstEmpty returns the added/deleted line counts for an untracked
+// path, via `git diff --no-index --numstat` against an empty file. Like
+// diffAgainstEmpty, --no-index uses diff(1)-style exit codes: 0 (no
+// difference) and 1 (difference found) are both success, only >1 is a real
+// error.
+func (r *Repo) numstatAgainstEmpty(ctx context.Context, path string) (added, deleted int, err error) {
+	cmd := gitexec.Command(ctx, r.dir, "diff", "--no-index", "--numstat", "-z", "--", os.DevNull, path)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(runErr, &exitErr) || exitErr.ExitCode() != 1 {
+			return 0, 0, fmt.Errorf("git diff --no-index --numstat -- %s: %w: %s", path, runErr, strings.TrimSpace(stderr.String()))
+		}
+	}
+	counts := parseNumstat(stdout.String())[path]
+	return counts[0], counts[1], nil
 }
 
 // parseLog parses the output of `git log` with fields separated by %x1f
@@ -366,6 +435,59 @@ func parsePorcelain(out string) []FileChange {
 		changes = append(changes, change)
 	}
 	return changes
+}
+
+// parseNumstat parses the NUL-delimited output of `git ... --numstat -z`
+// into added/deleted line counts keyed by the new/current path. Each record
+// is either one token "<added>\t<deleted>\t<path>", or, for a rename/copy
+// (when -M is in effect), one token "<added>\t<deleted>\t" with an empty
+// path field followed by two more NUL-terminated tokens (old path, then new
+// path); the stats are keyed under the new path. <added>/<deleted> are "-"
+// for binary files, treated as 0.
+func parseNumstat(out string) map[string][2]int {
+	tokens := strings.Split(out, "\x00")
+	stats := make(map[string][2]int, len(tokens))
+	for i := 0; i < len(tokens); i++ {
+		token := tokens[i]
+		if token == "" {
+			continue
+		}
+		parts := strings.SplitN(token, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		path := parts[2]
+		if path == "" {
+			if i+2 >= len(tokens) {
+				break
+			}
+			path = tokens[i+2]
+			i += 2
+		}
+		stats[path] = [2]int{parseNumstatCount(parts[0]), parseNumstatCount(parts[1])}
+	}
+	return stats
+}
+
+// parseNumstatCount converts one numstat column to an int, treating git's
+// "-" placeholder for binary files (and any other non-numeric value) as 0.
+func parseNumstatCount(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return n
+}
+
+// mergeStats sets Additions/Deletions on each entry of changes whose Path is
+// present in stats, leaving unmatched entries at their zero value.
+func mergeStats(changes []FileChange, stats map[string][2]int) {
+	for i := range changes {
+		if counts, ok := stats[changes[i].Path]; ok {
+			changes[i].Additions = counts[0]
+			changes[i].Deletions = counts[1]
+		}
+	}
 }
 
 // classify maps the index/worktree status pair from `git status --porcelain`

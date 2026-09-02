@@ -16,6 +16,15 @@ const statusStyles: Record<string, FileStatus> = {
 
 const fallbackStatus: FileStatus = {glyph: "?", label: "Changed", className: ""};
 
+function DocIcon() {
+    return (
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M4 1.5h5l3 3v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" stroke="currentColor" />
+            <path d="M9 1.5V4a1 1 0 0 0 1 1h2.5" stroke="currentColor" />
+        </svg>
+    );
+}
+
 function matchesFilter(path: string, filter: string): boolean {
     if (!/[*?]/.test(filter)) {
         return path.toLowerCase().includes(filter.toLowerCase());
@@ -33,6 +42,7 @@ interface FileListProps {
     onSelectFile: (path: string) => void;
     onToggleChecked: (path: string) => void;
     onToggleCheckedAll: (items: gitdiff.FileChange[]) => void;
+    historyMode: boolean;
 }
 
 function FileList(props: FileListProps) {
@@ -45,12 +55,26 @@ function FileList(props: FileListProps) {
         onSelectFile,
         onToggleChecked,
         onToggleCheckedAll,
+        historyMode,
     } = props;
     const visible = fileFilter ? items.filter((f) => matchesFilter(f.Path, fileFilter)) : items;
     const allChecked = visible.length > 0 && visible.every((f) => checked.has(f.Path));
     const someChecked = visible.some((f) => checked.has(f.Path));
+    const totalAdditions = items.reduce((sum, f) => sum + f.Additions, 0);
+    const totalDeletions = items.reduce((sum, f) => sum + f.Deletions, 0);
     return (
         <>
+            {items.length > 0 && (
+                <div className={historyMode ? "file-list-stat file-list-stat--history" : "file-list-stat"}>
+                    <span className="stat-files">
+                        <DocIcon /> {items.length}
+                    </span>
+                    <span className="stat-diff">
+                        <span className="stat-added">+{totalAdditions}</span>
+                        <span className="stat-deleted">−{totalDeletions}</span>
+                    </span>
+                </div>
+            )}
             <div className="file-list-select-all">
                 <input
                     type="checkbox"

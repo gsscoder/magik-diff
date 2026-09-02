@@ -188,6 +188,8 @@ export namespace gitdiff {
 	    OrigPath: string;
 	    Type: string;
 	    IsCode: boolean;
+	    Additions: number;
+	    Deletions: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileChange(source);
@@ -199,6 +201,8 @@ export namespace gitdiff {
 	        this.OrigPath = source["OrigPath"];
 	        this.Type = source["Type"];
 	        this.IsCode = source["IsCode"];
+	        this.Additions = source["Additions"];
+	        this.Deletions = source["Deletions"];
 	    }
 	}
 
