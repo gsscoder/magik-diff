@@ -159,6 +159,47 @@
     color: var(--added);
 }
 
+.about-dialog {
+    width: 420px;
+}
+
+.about-meta,
+.about-shortcuts {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.about-meta div,
+.about-shortcuts div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.about-meta span:first-child,
+.about-shortcuts span:first-child {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.about-meta span:last-child,
+.about-shortcuts span:last-child {
+    color: var(--text-strong);
+    font-size: 12px;
+}
+
+.about-shortcuts span:first-child {
+    font-family: var(--font-mono);
+}
+
+.about-divider {
+    border: none;
+    height: 1px;
+    background-color: var(--border);
+    margin: 0 12px;
+}
+
 /* Left rail */
 
 .rail {

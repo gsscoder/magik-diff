@@ -1,10 +1,10 @@
 # Magik Diff
 
-![version](https://img.shields.io/badge/version-0.2.1-blue)
+![version](https://img.shields.io/badge/version-0.3.0-blue)
 
 A native git diff viewer with an on-demand LLM explanation pane — covering a single file, all tracked changes, or any past commit. Human review stays in the loop; the model gets you there faster.
 
-![Screen](docs/screen.png)
+![Demo](docs/demo.gif)
 
 ## Why?
 
@@ -18,9 +18,12 @@ Each file's diff renders as unified (`+`/`-` inline) or split (old file on the l
 
 | Keys | Action |
 | --- | --- |
-| `Ctrl/Cmd` + `L` | Open LLM configuration |
+| `Ctrl/Cmd` + `M` | Open model config |
+| `Ctrl/Cmd` + `B` | Show/hide the Changes/History pane |
 | `Ctrl/Cmd` + `+` / `-` | Zoom in / out |
 | `Ctrl/Cmd` + `0` | Reset zoom |
+| `F11` | Toggle zen mode |
+| `Esc` | Close open menu |
 
 ## Checks
 

@@ -94,6 +94,7 @@ function App() {
     const [hasKey, setHasKey] = useState(false);
     const [usedFallback, setUsedFallback] = useState(false);
     const [modelConfigDialogOpen, setModelConfigDialogOpen] = useState(false);
+    const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
     const [explanation, setExplanation] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
@@ -237,6 +238,9 @@ function App() {
             } else if (e.key === "m" || e.key === "M") {
                 e.preventDefault();
                 openModelConfigDialog();
+            } else if (e.key === "b" || e.key === "B") {
+                e.preventDefault();
+                setRailVisible((v) => !v);
             }
         }
         window.addEventListener("keydown", handleKeyDown);
@@ -440,6 +444,14 @@ function App() {
         checkReadiness();
     }
 
+    function openAboutDialog() {
+        setAboutDialogOpen(true);
+    }
+
+    function closeAboutDialog() {
+        setAboutDialogOpen(false);
+    }
+
     function handleOpenFolder() {
         OpenAndSwitchRepo().then((res: main.OpenFolderResult) => {
             if (res.Canceled) {
@@ -500,7 +512,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
+                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -510,6 +522,7 @@ function App() {
                     <button className="readiness-banner-action" onClick={handleOpenFolder}>Open</button>
                 </div>
                 {!zen && <StatusBar key={repoGeneration}/>}
+                {aboutDialogOpen && <AboutDialog onClose={closeAboutDialog} />}
             </div>
         );
     }
@@ -517,7 +530,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
+            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
             <div id="App-root" style={{zoom}}>
                 {openError && (
                     <div className="readiness-banner">
@@ -641,6 +654,7 @@ function App() {
                         onClose={closeModelConfigDialog}
                     />
                 )}
+                {aboutDialogOpen && <AboutDialog onClose={closeAboutDialog} />}
             </div>
             {!zen && <StatusBar key={repoGeneration}/>}
         </div>
@@ -731,6 +745,34 @@ function ModelConfigDialog(props: {
             </div>
         </div>
     )
+}
+
+function AboutDialog(props: { onClose: () => void }) {
+    return (
+        <div className="config-overlay" onClick={props.onClose}>
+            <div className="config-dialog about-dialog" onClick={(e) => e.stopPropagation()}>
+                <h2>Magik Diff</h2>
+                <div className="about-meta">
+                    <div><span>Version</span><span>0.3.0</span></div>
+                    <div><span>Author</span><span>koder0x</span></div>
+                    <div><span>License</span><span>MIT</span></div>
+                    <div><span>Stack</span><span>Go, Wails, React, TypeScript</span></div>
+                </div>
+                <hr className="about-divider" />
+                <div className="about-shortcuts">
+                    <div><span>F11</span><span>Toggle zen mode</span></div>
+                    <div><span>Ctrl+B</span><span>Show/hide Changes/History pane</span></div>
+                    <div><span>Ctrl+M</span><span>Open model config</span></div>
+                    <div><span>Ctrl+ +/-</span><span>Zoom in / out</span></div>
+                    <div><span>Ctrl+0</span><span>Reset zoom</span></div>
+                    <div><span>Esc</span><span>Close open menu</span></div>
+                </div>
+                <div className="config-dialog-actions">
+                    <button onClick={props.onClose}>Close</button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 export default App

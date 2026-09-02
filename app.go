@@ -77,10 +77,10 @@ func (a *App) switchRepo(root string) {
 	a.startWatcher(root)
 }
 
-// WorkingDir returns the working directory the app was launched from,
-// shown in the title bar.
+// WorkingDir returns the active repo's root directory, shown in the title
+// bar.
 func (a *App) WorkingDir() (string, error) {
-	return os.Getwd()
+	return a.repo.Dir(), nil
 }
 
 // IsGitRepo reports whether the active repo — resolved at startup from the

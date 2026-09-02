@@ -59,9 +59,20 @@ function GearIcon() {
     );
 }
 
+function InfoIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+            <path d="M12 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="12" cy="7.5" r="1.25" fill="currentColor" />
+        </svg>
+    );
+}
+
 type TitleBarProps = {
     onOpenRepo: () => void;
     onOpenModelConfig: () => void;
+    onOpenAbout: () => void;
     railVisible: boolean;
     onToggleRailVisible: () => void;
 };
@@ -72,7 +83,7 @@ declare global {
     }
 }
 
-function TitleBar({onOpenRepo, onOpenModelConfig, railVisible, onToggleRailVisible}: TitleBarProps) {
+function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onToggleRailVisible}: TitleBarProps) {
     const [maximised, setMaximised] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const resizeFrame = useRef(0);
@@ -152,6 +163,15 @@ function TitleBar({onOpenRepo, onOpenModelConfig, railVisible, onToggleRailVisib
                 </button>
                 <span className="titlebar-spacer" />
             </div>
+            <button
+                type="button"
+                className="titlebar-menu-button"
+                aria-label="About"
+                title="About"
+                onClick={onOpenAbout}
+            >
+                <InfoIcon />
+            </button>
             <div className="titlebar-menu" ref={menuRef}>
                 <button
                     type="button"

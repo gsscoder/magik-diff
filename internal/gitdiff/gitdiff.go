@@ -32,6 +32,11 @@ func New(dir string) *Repo {
 	return &Repo{dir: dir}
 }
 
+// Dir returns the directory this Repo is rooted at.
+func (r *Repo) Dir() string {
+	return r.dir
+}
+
 // FindRoot resolves dir, or the nearest ancestor of dir that is a git
 // working tree, to that repository's top-level directory. It returns an
 // error if dir is not inside a git working tree.
