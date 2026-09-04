@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise} from "../wailsjs/runtime/runtime";
+import {Environment, Quit, WindowIsMaximised, WindowMinimise, WindowToggleMaximise} from "../wailsjs/runtime/runtime";
 
 function MinimiseIcon() {
     return (
@@ -86,8 +86,17 @@ declare global {
 function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onToggleRailVisible}: TitleBarProps) {
     const [maximised, setMaximised] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    // Linux windows are decorated (native title bar + resize border, see
+    // main.go) because GNOME's WM won't interactively resize an undecorated
+    // one; the OS already draws its own min/max/close there, and this app's
+    // resize-cursor emulation would only fight the native border.
+    const [nativeChrome, setNativeChrome] = useState(false);
     const resizeFrame = useRef(0);
     const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        Environment().then((env) => setNativeChrome(env.platform === "linux"));
+    }, []);
 
     useEffect(() => {
         function poll() {
@@ -115,7 +124,7 @@ function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onTo
         // the window buttons and shrinks the drag strip. A maximised window
         // cannot be resized anyway, so disable the band there.
         const flags = window.wails?.flags;
-        if (!flags) {
+        if (!flags || nativeChrome) {
             return;
         }
         flags.enableResize = !maximised;
@@ -123,7 +132,7 @@ function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onTo
             flags.resizeEdge = undefined;
             document.documentElement.style.cursor = "";
         }
-    }, [maximised]);
+    }, [maximised, nativeChrome]);
 
     useEffect(() => {
         if (!menuOpen) {
@@ -211,35 +220,37 @@ function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onTo
                     </div>
                 )}
             </div>
-            <div className="titlebar-controls">
-                <button
-                    type="button"
-                    className="titlebar-button"
-                    aria-label="Minimise"
-                    title="Minimise"
-                    onClick={() => WindowMinimise()}
-                >
-                    <MinimiseIcon />
-                </button>
-                <button
-                    type="button"
-                    className="titlebar-button"
-                    aria-label={maximised ? "Restore" : "Maximise"}
-                    title={maximised ? "Restore" : "Maximise"}
-                    onClick={() => WindowToggleMaximise()}
-                >
-                    {maximised ? <RestoreIcon /> : <MaximiseIcon />}
-                </button>
-                <button
-                    type="button"
-                    className="titlebar-button titlebar-close"
-                    aria-label="Close"
-                    title="Close"
-                    onClick={() => Quit()}
-                >
-                    <CloseIcon />
-                </button>
-            </div>
+            {!nativeChrome && (
+                <div className="titlebar-controls">
+                    <button
+                        type="button"
+                        className="titlebar-button"
+                        aria-label="Minimise"
+                        title="Minimise"
+                        onClick={() => WindowMinimise()}
+                    >
+                        <MinimiseIcon />
+                    </button>
+                    <button
+                        type="button"
+                        className="titlebar-button"
+                        aria-label={maximised ? "Restore" : "Maximise"}
+                        title={maximised ? "Restore" : "Maximise"}
+                        onClick={() => WindowToggleMaximise()}
+                    >
+                        {maximised ? <RestoreIcon /> : <MaximiseIcon />}
+                    </button>
+                    <button
+                        type="button"
+                        className="titlebar-button titlebar-close"
+                        aria-label="Close"
+                        title="Close"
+                        onClick={() => Quit()}
+                    >
+                        <CloseIcon />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }
