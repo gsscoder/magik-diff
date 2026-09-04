@@ -33,7 +33,7 @@ func TestExplain_NoSelection(t *testing.T) {
 	initRepo(t)
 
 	app := &App{}
-	_, err := app.Explain("", []string{})
+	_, err := app.Explain("", []string{}, false)
 	if err == nil {
 		t.Fatal("Explain: expected error when no files are selected, got nil")
 	}

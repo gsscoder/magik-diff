@@ -24,7 +24,7 @@
     transition: grid-template-columns 0.2s ease;
 }
 
-#App.explanation-expanded .diff-pane {
+#App.explanation-expanded .diff-column {
     display: none;
 }
 
@@ -419,10 +419,19 @@
 
 /* Diff pane */
 
-.diff-pane {
+.diff-column {
     grid-column: 3;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
     border-right: 1px solid var(--border);
+}
+
+.diff-pane {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     font-family: var(--font-mono);
     font-size: 12px;
 }
@@ -595,6 +604,112 @@
         transparent 6px
     );
     opacity: 0.5;
+}
+
+/* Project brief bar */
+
+.project-brief-bar {
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface);
+}
+
+.project-brief-acquire {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+.project-brief-acquire:hover:not(:disabled) {
+    color: var(--text-strong);
+    background-color: var(--surface-hover);
+}
+
+.project-brief-acquire.acquiring svg {
+    animation: explain-spin 1s linear infinite;
+}
+
+.project-brief-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-strong);
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+.project-brief-header:hover {
+    background-color: var(--surface-hover);
+}
+
+.project-brief-stale-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--modified);
+}
+
+.project-brief-body {
+    padding: 0 10px 10px;
+}
+
+.project-brief-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.project-brief-use {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.project-brief-refresh {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 7px;
+    color: var(--text-muted);
+    background: none;
+}
+
+.project-brief-refresh:hover:not(:disabled) {
+    color: var(--text-strong);
+    border-color: var(--border-strong);
+}
+
+.project-brief-refresh.stale {
+    color: var(--modified);
+    border-color: color-mix(in srgb, var(--modified) 40%, transparent);
+}
+
+.project-brief-refresh.acquiring svg {
+    animation: explain-spin 1s linear infinite;
+}
+
+.project-brief-bar .project-brief-error {
+    margin: 0;
+    padding: 0 10px 8px;
+    color: var(--removed);
+    font-size: 12px;
 }
 
 /* Explanation pane */

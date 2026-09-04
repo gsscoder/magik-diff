@@ -1,7 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import {checks} from "../wailsjs/go/models";
 
-function ExpandCollapseIcon({expanded}: {expanded: boolean}) {
+export function ExpandCollapseIcon({expanded}: {expanded: boolean}) {
     return (
         <svg
             width="14"

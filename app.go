@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"mdiff/internal/brief"
 	"mdiff/internal/checks"
 	"mdiff/internal/config"
 	"mdiff/internal/diffparse"
@@ -220,11 +221,38 @@ func (a *App) VerifyLLMConfig(baseURL, model, apiKey string) error {
 // Explain asks the configured LLM to explain the diffs of paths, scoped to
 // the working tree when hash is empty or to the given commit otherwise. A
 // single path uses the terse per-file prompt; multiple paths are combined
-// into one diff blob and explained holistically. It returns a clear error
-// if paths is empty, or if the base URL, model, or API key is not
-// configured.
-func (a *App) Explain(hash string, paths []string) (string, error) {
-	return a.explain.Explain(a.ctx, a.repo, hash, paths)
+// into one diff blob and explained holistically. When useBrief is true and
+// a project brief is stored for the active repo (regardless of staleness),
+// its text is passed through as reference context; otherwise no brief is
+// used. It returns a clear error if paths is empty, or if the base URL,
+// model, or API key is not configured.
+func (a *App) Explain(hash string, paths []string, useBrief bool) (string, error) {
+	briefText := ""
+	if useBrief {
+		if st, err := brief.GetState(a.repo.Dir()); err == nil && st.Stored {
+			briefText = st.Brief.Text
+		}
+	}
+	return a.explain.Explain(a.ctx, a.repo, hash, paths, briefText)
+}
+
+// ProjectBrief returns the current state of the project brief for the
+// active repo: which AI-instruction files are present, whether a brief has
+// been extracted before, and whether it's stale relative to those files.
+func (a *App) ProjectBrief() (brief.State, error) {
+	return brief.GetState(a.repo.Dir())
+}
+
+// AcquireProjectBrief scans the active repo's AI-instruction files and
+// extracts a fresh project brief via the configured LLM, persisting it and
+// returning the resulting state. It returns a clear error if no
+// AI-instruction files are present, or if the LLM is not configured.
+func (a *App) AcquireProjectBrief() (brief.State, error) {
+	root := a.repo.Dir()
+	if _, err := brief.Acquire(a.ctx, root); err != nil {
+		return brief.State{}, err
+	}
+	return brief.GetState(root)
 }
 
 // ListChecks returns every user-defined check available in the checks

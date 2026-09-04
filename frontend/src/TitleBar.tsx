@@ -203,7 +203,7 @@ function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onTo
                                 onOpenRepo();
                             }}
                         >
-                            Open repository ...
+                            Open repository...
                         </button>
                         <div className="titlebar-menu-separator" />
                         <button

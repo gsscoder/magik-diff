@@ -6,6 +6,10 @@ export function APIKeyUsedFallback() {
   return window['go']['main']['App']['APIKeyUsedFallback']();
 }
 
+export function AcquireProjectBrief() {
+  return window['go']['main']['App']['AcquireProjectBrief']();
+}
+
 export function ChangedFiles() {
   return window['go']['main']['App']['ChangedFiles']();
 }
@@ -22,8 +26,8 @@ export function CurrentBranch() {
   return window['go']['main']['App']['CurrentBranch']();
 }
 
-export function Explain(arg1, arg2) {
-  return window['go']['main']['App']['Explain'](arg1, arg2);
+export function Explain(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Explain'](arg1, arg2, arg3);
 }
 
 export function FileDiff(arg1) {
@@ -48,6 +52,10 @@ export function ListChecks() {
 
 export function OpenAndSwitchRepo() {
   return window['go']['main']['App']['OpenAndSwitchRepo']();
+}
+
+export function ProjectBrief() {
+  return window['go']['main']['App']['ProjectBrief']();
 }
 
 export function RecentCommits(arg1, arg2) {

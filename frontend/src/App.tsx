@@ -5,6 +5,7 @@ import './TitleBar.css';
 import StatusBar from "./StatusBar";
 import './StatusBar.css';
 import {
+    AcquireProjectBrief,
     APIKeyUsedFallback,
     ChangedFiles,
     CommitFileDiff,
@@ -16,16 +17,18 @@ import {
     IsGitRepo,
     ListChecks,
     OpenAndSwitchRepo,
+    ProjectBrief,
     RecentCommits,
     RunCheck,
     SaveConfig,
     SetAPIKey,
     VerifyLLMConfig,
 } from "../wailsjs/go/main/App";
-import {checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
+import {brief, checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
 import DiffPane from "./DiffPane";
 import ExplanationPane, {CheckState} from "./ExplanationPane";
 import FileList from "./FileList";
+import ProjectBriefBar from "./ProjectBriefBar";
 import {
     EventsOn,
     Position,
@@ -105,6 +108,12 @@ function App() {
     const [explainWidth, setExplainWidth] = useState(380);
     const [railWidth, setRailWidth] = useState(240);
 
+    const [projectBrief, setProjectBrief] = useState<brief.State | null>(null);
+    const [acquiringBrief, setAcquiringBrief] = useState(false);
+    const [briefError, setBriefError] = useState<string>("");
+    const [briefExpanded, setBriefExpanded] = useState(false);
+    const [useBrief, setUseBrief] = useState(true);
+
     const startResize = makeResizeHandler(explainWidth, setExplainWidth, {
         direction: -1,
         min: 240,
@@ -143,6 +152,8 @@ function App() {
     selectedPathRef.current = selectedPath;
     const selectedCommitRef = useRef(selectedCommit);
     selectedCommitRef.current = selectedCommit;
+    const repoGenerationRef = useRef(repoGeneration);
+    repoGenerationRef.current = repoGeneration;
 
     const [splitView, setSplitView] = useState<boolean>(() => {
         try {
@@ -294,6 +305,7 @@ function App() {
             .catch((err) => setOpenError(String(err)));
         checkReadiness();
         ListChecks().then((c) => setChecksList(c ?? []));
+        ProjectBrief().then(setProjectBrief);
     }
 
     function selectFile(path: string) {
@@ -413,13 +425,34 @@ function App() {
         setExplanation("");
         setExplainError("");
         setExplainedCount(checked.size);
+        const effectiveUseBrief = (projectBrief?.Stored ?? false) && useBrief;
         const request = mode === "history" && selectedCommit
-            ? Explain(selectedCommit.Hash, [...checked])
-            : Explain("", [...checked]);
+            ? Explain(selectedCommit.Hash, [...checked], effectiveUseBrief)
+            : Explain("", [...checked], effectiveUseBrief);
         request
             .then(setExplanation)
             .catch((err) => setExplainError(String(err)))
             .finally(() => setExplaining(false));
+    }
+
+    function acquireProjectBrief() {
+        setAcquiringBrief(true);
+        setBriefError("");
+        const generation = repoGenerationRef.current;
+        AcquireProjectBrief()
+            .then((state) => {
+                if (repoGenerationRef.current !== generation) {
+                    return;
+                }
+                setProjectBrief(state);
+            })
+            .catch((err) => {
+                if (repoGenerationRef.current !== generation) {
+                    return;
+                }
+                setBriefError(String(err));
+            })
+            .finally(() => setAcquiringBrief(false));
     }
 
     function runCheck(check: checks.Check) {
@@ -474,6 +507,8 @@ function App() {
             setCommitsExhausted(false);
             resetSelection();
             setChecked(new Set());
+            setProjectBrief(null);
+            setBriefExpanded(false);
             loadRepoData();
         });
     }
@@ -625,12 +660,24 @@ function App() {
                             <div className="pane-resizer rail-resizer" onMouseDown={startRailResize} />
                         </>
                     )}
-                    <DiffPane
-                        parsedDiff={parsedDiff}
-                        diffError={diffError}
-                        splitView={splitView}
-                        onSplitViewChange={setSplitView}
-                    />
+                    <div className="diff-column">
+                        <ProjectBriefBar
+                            state={projectBrief}
+                            acquiring={acquiringBrief}
+                            error={briefError}
+                            onAcquire={acquireProjectBrief}
+                            expanded={briefExpanded}
+                            onExpandedChange={setBriefExpanded}
+                            useBrief={useBrief}
+                            onUseBriefChange={setUseBrief}
+                        />
+                        <DiffPane
+                            parsedDiff={parsedDiff}
+                            diffError={diffError}
+                            splitView={splitView}
+                            onSplitViewChange={setSplitView}
+                        />
+                    </div>
                     {!explanationExpanded && (
                         <div className="pane-resizer" onMouseDown={startResize} />
                     )}
