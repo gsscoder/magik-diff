@@ -100,6 +100,7 @@ function App() {
     const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
     const [explanation, setExplanation] = useState<string>("");
+    const [streamingText, setStreamingText] = useState<string>("");
     const [explaining, setExplaining] = useState(false);
     const [explainError, setExplainError] = useState<string>("");
     const [diffError, setDiffError] = useState<string>("");
@@ -185,6 +186,18 @@ function App() {
     // clobber the user's checkbox selection, selected file, or explanation panel.
     useEffect(() => {
         return EventsOn("repo:changed", handleRepoChanged);
+    }, []);
+
+    // Live explanation: the backend emits one event per chunk of LLM prose,
+    // so the pane fills in as it is generated instead of sitting on a
+    // placeholder for what can be a minute. The promise's final text still
+    // wins; this buffer only covers the wait.
+    useEffect(() => {
+        return EventsOn("explain:delta", (chunk) => {
+            if (typeof chunk === "string") {
+                setStreamingText((prev) => prev + chunk);
+            }
+        });
     }, []);
 
     function handleRepoChanged() {
@@ -328,8 +341,6 @@ function App() {
                 }
                 setDiffError(String(err));
             });
-        setExplanation("");
-        setExplainError("");
     }
 
     function loadCommits() {
@@ -423,15 +434,24 @@ function App() {
         }
         setExplaining(true);
         setExplanation("");
+        setStreamingText("");
         setExplainError("");
         setExplainedCount(checked.size);
         const effectiveUseBrief = (projectBrief?.Stored ?? false) && useBrief;
         const request = mode === "history" && selectedCommit
             ? Explain(selectedCommit.Hash, [...checked], effectiveUseBrief)
             : Explain("", [...checked], effectiveUseBrief);
+        // The streamed buffer is dropped in the same update that stores the
+        // authoritative text, so the prose never renders twice for a frame.
         request
-            .then(setExplanation)
-            .catch((err) => setExplainError(String(err)))
+            .then((text) => {
+                setExplanation(text);
+                setStreamingText("");
+            })
+            .catch((err) => {
+                setExplainError(String(err));
+                setStreamingText("");
+            })
             .finally(() => setExplaining(false));
     }
 
@@ -683,6 +703,7 @@ function App() {
                     )}
                     <ExplanationPane
                         explanation={explanation}
+                        streamingText={streamingText}
                         explaining={explaining}
                         explainError={explainError}
                         explainedCount={explainedCount}
@@ -803,7 +824,7 @@ function AboutDialog(props: { onClose: () => void }) {
             <div className="config-dialog about-dialog" onClick={(e) => e.stopPropagation()}>
                 <h2>Magik Diff</h2>
                 <div className="about-meta">
-                    <div><span>Version</span><span>0.3.0</span></div>
+                    <div><span>Version</span><span>0.4.0</span></div>
                     <div><span>Author</span><span>koder0x</span></div>
                     <div><span>License</span><span>MIT</span></div>
                     <div><span>Stack</span><span>Go, Wails, React, TypeScript</span></div>

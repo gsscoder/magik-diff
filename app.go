@@ -214,7 +214,7 @@ func (a *App) VerifyLLMConfig(baseURL, model, apiKey string) error {
 	if apiKey == "" {
 		apiKey, _ = config.GetAPIKey()
 	}
-	_, err := llm.Explain(a.ctx, baseURL, model, apiKey, "Hi")
+	_, err := llm.Explain(a.ctx, baseURL, model, apiKey, "Hi", nil)
 	return err
 }
 
@@ -224,16 +224,29 @@ func (a *App) VerifyLLMConfig(baseURL, model, apiKey string) error {
 // into one diff blob and explained holistically. When useBrief is true and
 // a project brief is stored for the active repo (regardless of staleness),
 // its text is passed through as reference context; otherwise no brief is
-// used. It returns a clear error if paths is empty, or if the base URL,
-// model, or API key is not configured.
-func (a *App) Explain(hash string, paths []string, useBrief bool) (string, error) {
+// used. Each chunk of the reply is emitted to the frontend as an
+// "explain:delta" event while it is generated, so the UI can render prose
+// instead of a placeholder during a call that can take a minute; the
+// complete text is still returned, and a cached result emits no deltas. It
+// returns a clear error if paths is empty, or if the base URL, model, or
+// API key is not configured. A panic anywhere in its call chain is
+// recovered and converted into an error, so the frontend's promise always
+// settles instead of hanging on Wails' broken panic-handling path.
+func (a *App) Explain(hash string, paths []string, useBrief bool) (result string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("explain: internal error: %v", r)
+		}
+	}()
 	briefText := ""
 	if useBrief {
-		if st, err := brief.GetState(a.repo.Dir()); err == nil && st.Stored {
+		if st, stateErr := brief.GetState(a.repo.Dir()); stateErr == nil && st.Stored {
 			briefText = st.Brief.Text
 		}
 	}
-	return a.explain.Explain(a.ctx, a.repo, hash, paths, briefText)
+	return a.explain.Explain(a.ctx, a.repo, hash, paths, briefText, func(chunk string) {
+		runtime.EventsEmit(a.ctx, "explain:delta", chunk)
+	})
 }
 
 // ProjectBrief returns the current state of the project brief for the

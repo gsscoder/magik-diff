@@ -3,11 +3,13 @@ package explain
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -74,7 +76,7 @@ func TestCombineDiffs_PropagatesError(t *testing.T) {
 
 func TestExplain_NoSelection(t *testing.T) {
 	s := NewService()
-	_, err := s.Explain(context.Background(), nil, "", []string{}, "")
+	_, err := s.Explain(context.Background(), nil, "", []string{}, "", nil)
 	if err == nil {
 		t.Fatal("Explain: expected error when no files are selected, got nil")
 	}
@@ -176,6 +178,36 @@ func TestAllChangesPrompt_EmbedsProjectBrief(t *testing.T) {
 	}
 }
 
+func TestChunkPrompt_NeverEmbedsProjectBrief(t *testing.T) {
+	tests := []string{"", "some diff", "a diff that mentions project brief in prose"}
+	for _, diff := range tests {
+		got := chunkPrompt(diff)
+		if strings.Contains(got, "--- project brief ---") {
+			t.Errorf("chunkPrompt(%q) = %q, must never embed a project-brief block", diff, got)
+		}
+	}
+}
+
+func TestSynthesisPrompt_EmptyBriefHasNoBriefBlock(t *testing.T) {
+	got := synthesisPrompt([]string{"summary one", "summary two"}, "")
+	if strings.Contains(got, "--- project brief ---") {
+		t.Errorf("synthesisPrompt with empty brief = %q, want no project-brief block", got)
+	}
+	if !strings.Contains(got, "summary one") || !strings.Contains(got, "summary two") {
+		t.Errorf("synthesisPrompt = %q, want it to embed both summaries", got)
+	}
+}
+
+func TestSynthesisPrompt_NonEmptyBriefHasBriefBlock(t *testing.T) {
+	got := synthesisPrompt([]string{"summary one"}, "this project is a CLI tool written in Go")
+	if !strings.Contains(got, "--- project brief ---") {
+		t.Errorf("synthesisPrompt with brief = %q, want a project-brief block", got)
+	}
+	if !strings.Contains(got, "this project is a CLI tool written in Go") {
+		t.Errorf("synthesisPrompt with brief = %q, want it to embed the brief text", got)
+	}
+}
+
 func TestCheckPrompt_NeverEmbedsProjectBrief(t *testing.T) {
 	c := checks.Check{Name: "test-check", Prompt: "check for foo"}
 	got := checkPrompt("some diff", c)
@@ -185,7 +217,8 @@ func TestCheckPrompt_NeverEmbedsProjectBrief(t *testing.T) {
 }
 
 // llmStub starts an httptest.Server that records the prompt sent in the
-// single outgoing chat message and replies with a fixed assistant message.
+// single outgoing chat message and replies with a fixed assistant message,
+// streamed as a one-chunk server-sent event stream.
 func llmStub(t *testing.T, onRequest func(prompt string)) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -200,9 +233,10 @@ func llmStub(t *testing.T, onRequest func(prompt string)) *httptest.Server {
 		if onRequest != nil && len(req.Messages) > 0 {
 			onRequest(req.Messages[0].Content)
 		}
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"an explanation"}}]}`))
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"an explanation\"}}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
 	}))
 }
 
@@ -231,7 +265,7 @@ func TestExplain_WithProjectBrief_EmbedsInOutgoingPrompt(t *testing.T) {
 	configureForTest(t, ts.URL)
 
 	s := NewService()
-	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "this project is a CLI tool written in Go"); err != nil {
+	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "this project is a CLI tool written in Go", nil); err != nil {
 		t.Fatalf("Explain: %v", err)
 	}
 
@@ -251,14 +285,49 @@ func TestExplain_BriefOnAndOffAreDistinctCacheEntries(t *testing.T) {
 	configureForTest(t, ts.URL)
 
 	s := NewService()
-	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, ""); err != nil {
+	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "", nil); err != nil {
 		t.Fatalf("Explain (no brief): %v", err)
 	}
-	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "a project brief"); err != nil {
+	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "a project brief", nil); err != nil {
 		t.Fatalf("Explain (with brief): %v", err)
 	}
 
 	if callCount != 2 {
 		t.Fatalf("LLM backend received %d requests, want 2: toggling the project brief for the same diff must not be served from the other state's cache entry", callCount)
+	}
+}
+
+func TestExplain_StreamsDeltasAndCacheHitEmitsNone(t *testing.T) {
+	dir, repo := initRepo(t)
+	runGitIn(t, dir, "commit", "--allow-empty", "-q", "-m", "initial")
+	writeFile(t, dir, "a.txt", "a content\n")
+
+	ts := llmStub(t, nil)
+	defer ts.Close()
+	configureForTest(t, ts.URL)
+
+	s := NewService()
+	var deltas []string
+	got, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "", func(chunk string) {
+		deltas = append(deltas, chunk)
+	})
+	if err != nil {
+		t.Fatalf("Explain: %v", err)
+	}
+	if want := []string{"an explanation"}; !slices.Equal(deltas, want) {
+		t.Errorf("onDelta received %q, want %q", deltas, want)
+	}
+	if got != "an explanation" {
+		t.Errorf("Explain() = %q, want %q", got, "an explanation")
+	}
+
+	deltas = nil
+	if _, err := s.Explain(context.Background(), repo, "", []string{"a.txt"}, "", func(chunk string) {
+		deltas = append(deltas, chunk)
+	}); err != nil {
+		t.Fatalf("Explain (cached): %v", err)
+	}
+	if len(deltas) != 0 {
+		t.Errorf("cache hit emitted %q, want no deltas at all", deltas)
 	}
 }

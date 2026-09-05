@@ -1,6 +1,6 @@
 # Magik Diff
 
-![version](https://img.shields.io/badge/version-0.3.0-blue)
+![version](https://img.shields.io/badge/version-0.4.0-blue)
 
 A native git diff viewer with an on-demand LLM explanation pane — covering a single file, all tracked changes, or any past commit. Human review stays in the loop; the model gets you there faster.
 

@@ -30,6 +30,9 @@ export type CheckState = { kind: "running" } | { kind: "error"; message: string 
 
 interface ExplanationPaneProps {
     explanation: string;
+    // Prose accumulated from the backend's explain:delta events while a call
+    // is in flight; empty once the call settles.
+    streamingText: string;
     explaining: boolean;
     explainError: string;
     explainedCount: number;
@@ -46,6 +49,7 @@ interface ExplanationPaneProps {
 function ExplanationPane(props: ExplanationPaneProps) {
     const {
         explanation,
+        streamingText,
         explaining,
         explainError,
         explainedCount,
@@ -111,8 +115,18 @@ function ExplanationPane(props: ExplanationPaneProps) {
                         : "Check one or more files, then click Explain"}
                 </p>
             )}
-            {explaining && (
-                <p className="placeholder">Explaining…</p>
+            {explaining && (streamingText
+                ? (
+                    <div className="markdown-body">
+                        <ReactMarkdown>{streamingText}</ReactMarkdown>
+                    </div>
+                )
+                : (
+                    <div className="explain-working">
+                        <span className="explain-spinner-big" aria-hidden="true" />
+                        <p className="placeholder">Explaining…</p>
+                    </div>
+                )
             )}
             {explainError && (
                 <p className="explain-error">{explainError}</p>
