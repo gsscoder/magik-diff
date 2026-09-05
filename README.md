@@ -8,7 +8,7 @@ A native git diff viewer with an on-demand LLM explanation pane — covering a s
 
 ## Why?
 
-Diff tools tell you *what* changed. Magik Diff adds a right-hand pane explaining *why* it matters — scroll-locked to the diff, triggered only on request, never automatically and never per hunk. You still review and decide; the model shortens the path. Strictly read-only: nothing is ever staged, committed, or checked out.
+Diff tools tell you *what* changed. Magik Diff adds a right-hand pane explaining *why* it matters — triggered only on request, never automatically and never per hunk. You still review and decide; the model shortens the path. Strictly read-only: nothing is ever staged, committed, or checked out.
 
 ## Split view
 
@@ -33,7 +33,7 @@ Alongside the built-in explanation, you can run user-defined checks against any 
 mdiff check add path/to/my-check.md
 ```
 
-Installed checks appear as buttons beside Explain, with resizable result panels.
+Installed checks appear as buttons beside Explain, with scrollable result panels.
 
 ## CLI
 
