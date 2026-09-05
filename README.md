@@ -2,13 +2,13 @@
 
 ![version](https://img.shields.io/badge/version-0.4.0-blue)
 
-A native git diff viewer with an on-demand LLM explanation pane — covering a single file, all tracked changes, or any past commit. Human review stays in the loop; the model gets you there faster.
+A native git diff viewer with an on-demand LLM explanation pane, covering a single file, all tracked changes, or any past commit. You stay in the review loop; the model just gets you there faster.
 
 ![Demo](docs/demo.gif)
 
 ## Why?
 
-Diff tools tell you *what* changed. Magik Diff adds a right-hand pane explaining *why* it matters — triggered only on request, never automatically and never per hunk. You still review and decide; the model shortens the path. Strictly read-only: nothing is ever staged, committed, or checked out.
+Diff tools show *what* changed. Magik Diff adds a right-hand pane that explains *why* it matters, and only when you ask for it — never automatically, never per hunk. Review and judgment stay yours; the model shortens the path to them. The tool is strictly read-only: it never stages, commits, or checks anything out.
 
 ## Split view
 
@@ -27,7 +27,7 @@ Each file's diff renders as unified (`+`/`-` inline) or split (old file on the l
 
 ## Checks
 
-Alongside the built-in explanation, you can run user-defined checks against any diff or commit — each is an independent LLM call with its own prompt. A check is a Markdown file with a front matter block (`name`, `description`, `color`) and a prompt body; `checks/language-consistency.md` is a working example. Install one via the CLI:
+Beyond the built-in explanation, you can run your own checks against any diff or commit, each as an independent LLM call with its own prompt. A check is a Markdown file with a front matter block (`name`, `description`, `color`) and a prompt body; see `checks/language-consistency.md` for a working example. Install one via the CLI:
 
 ```sh
 mdiff check add path/to/my-check.md
@@ -46,7 +46,7 @@ mdiff --help, -h               show this help
 
 ## Build
 
-A native desktop binary built with [Wails](https://wails.io) (Go backend, React frontend); it must be compiled on the target OS.
+A native desktop binary built with [Wails](https://wails.io) (Go backend, React frontend). It must be compiled on the target OS.
 
 ### Windows
 

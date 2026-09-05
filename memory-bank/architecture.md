@@ -1,6 +1,6 @@
 # Magick Diff — Architecture Spec (pre-build, AI-only)
 
-Status: nothing built yet. Audience: AI coding agent implementing v1. Not a human-facing doc, not a tutorial. Purpose: lock down decisions and rationale so a future agent neither re-litigates them nor silently reverts them to a more "obvious"-looking default.
+Status: nothing built yet. Audience: AI coding agent implementing v1. Not a human-facing doc, not a tutorial. Purpose: lock down decisions and rationale so no future agent re-litigates them or quietly reverts them to a more "obvious"-looking default.
 
 Scope note: do not infer a file/directory tree, function names, route paths, or diff/hunk JSON field names from this doc. Those are first-implementation decisions, left open. Exception: names that are themselves the decision are fixed, not illustrative — `base_url`/`model`/`api_key` (section 6), `config.json`, `OPENAI_API_KEY`, `DESIGN.md` (section 8).
 
@@ -17,7 +17,7 @@ Anti-references (negative constraints, not asides): GitHub Desktop, LazyGit. Do 
 Status: LOCKED
 Decision: Go backend, Wails as the native-shell/binding layer, React for the UI.
 Revision note: this supersedes a prior LOCKED decision ("Go, web UI embedded via `embed.FS`, plain HTML/JS/CSS, no npm/bundler"). Overturned via new explicit user decision, per the legend's own escape hatch for LOCKED items, not via agent judgment. Do not revert to the embed.FS/plain-HTML approach.
-Rationale: Wails avoids Electron's bundled-Chromium bloat by binding to the OS's own webview (WebView2 on Windows, WebKit on macOS/Linux) instead of shipping a browser engine per platform. React is adopted because it is where prior UI work has shown strong results, unlike a plain-HTML approach. Wails' Go↔JS surface is small and well-trodden: a Go struct's exported methods auto-bind to JS, plus an events bus for push-from-Go — not an exotic or bespoke IPC layer.
+Rationale: Wails avoids Electron's bundled-Chromium bloat by binding to the OS's own webview (WebView2 on Windows, WebKit on macOS/Linux) instead of shipping a browser engine per platform. React is the choice because prior UI work has shown strong results with it, unlike a plain-HTML approach. Wails' Go↔JS surface is small and well-trodden: a Go struct's exported methods auto-bind to JS, plus an events bus for push-from-Go, not an exotic or bespoke IPC layer.
 Trade-off, accepted knowingly, not an oversight: this gives up the previous decision's "CGO-free, zero-runtime-dep, true static cross-compile" property. Wails requires CGO and a per-OS webview runtime at run time — on Windows, the WebView2 redistributable is not bundled into the binary; it is an install-time/runtime dependency, the same category the original decision explicitly avoided by rejecting Electron/Tauri. A future agent must not "helpfully" strip the CGO dependency or revert to `embed.FS` thinking this was unintentional; it was weighed and accepted.
 Rejected alternatives, do not re-propose without new information:
 

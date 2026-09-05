@@ -14,7 +14,7 @@ Flag identifiers (not string literals or comments) that are not consistently Eng
 
 Leave unflagged: user-facing strings, labels, or messages in another language;
 proper nouns; acronyms; established loanwords (e.g. `naiveDate`, `RSVP`);
-and non-English words found only in comments.
+and non-English words that appear only in comments.
 
-If nothing qualifies, say so in one short line. Otherwise list each offending
-identifier with its file and a one-line reason — nothing else.
+If nothing qualifies, say so in one short line. Otherwise, list each offending
+identifier with its file and a one-line reason, nothing else.
