@@ -52,8 +52,10 @@ func main() {
 	// Launch the Wails application.
 	err := wails.Run(&options.App{
 		Title:     title,
-		Width:  1024,
-		Height: 768,
+		Width:     1024,
+		Height:    768,
+		MinWidth:  640,
+		MinHeight: 480,
 		// GNOME's window manager withholds all WM-driven interactive resize
 		// (edge grips, Alt+drag) from undecorated windows, so a frameless
 		// window can never be resized there regardless of app-side hit

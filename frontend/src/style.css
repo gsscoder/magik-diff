@@ -36,16 +36,21 @@ html {
     color: var(--text);
 }
 
+html, body {
+    height: 100%;
+}
+
 body {
     margin: 0;
     font-family: var(--font-ui);
     font-size: 13px;
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
+    overflow: hidden;
 }
 
-#app {
-    height: 100vh;
+#root {
+    height: 100%;
 }
 
 /* Thin graphite scrollbars */
