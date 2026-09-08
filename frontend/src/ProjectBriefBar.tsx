@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import {brief} from "../wailsjs/go/models";
-import {ExpandCollapseIcon} from "./ExplanationPane";
+import {CheckIcon, CopyIcon, ExpandCollapseIcon} from "./ExplanationPane";
+import {useCopyToClipboard} from "./useCopyToClipboard";
 
 function RefreshIcon() {
     return (
@@ -24,6 +25,7 @@ interface ProjectBriefBarProps {
 
 function ProjectBriefBar(props: ProjectBriefBarProps) {
     const {state, acquiring, error, onAcquire, expanded, onExpandedChange, useBrief, onUseBriefChange} = props;
+    const {copied, copy: copyBrief} = useCopyToClipboard(state?.Brief.text);
 
     if (!state || !state.HasSources) {
         return null;
@@ -84,6 +86,15 @@ function ProjectBriefBar(props: ProjectBriefBarProps) {
                             onClick={onAcquire}
                         >
                             <RefreshIcon />
+                        </button>
+                        <button
+                            className="project-brief-copy"
+                            aria-label={copied ? "Copied" : "Copy project brief"}
+                            title={copied ? "Copied" : "Copy project brief"}
+                            disabled={!state.Brief.text}
+                            onClick={copyBrief}
+                        >
+                            {copied ? <CheckIcon /> : <CopyIcon />}
                         </button>
                     </div>
                     {error && <p className="explain-error project-brief-error">{error}</p>}

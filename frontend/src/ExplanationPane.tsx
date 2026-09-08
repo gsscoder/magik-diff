@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import {checks} from "../wailsjs/go/models";
+import {useCopyToClipboard} from "./useCopyToClipboard";
 
 export function ExpandCollapseIcon({expanded}: {expanded: boolean}) {
     return (
@@ -22,6 +23,23 @@ function SparkleIcon() {
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M8 1l1.2 3.8L13 6l-3.8 1.2L8 11l-1.2-3.8L3 6l3.8-1.2L8 1z" />
             <path d="M13 10.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6.6-1.9z" />
+        </svg>
+    );
+}
+
+export function CopyIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M10.5 3.5v-.5a1.5 1.5 0 0 0-1.5-1.5H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 9.5h.5" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+    );
+}
+
+export function CheckIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
     );
 }
@@ -62,6 +80,7 @@ function ExplanationPane(props: ExplanationPaneProps) {
         checkResults,
         onRunCheck,
     } = props;
+    const {copied, copy: copyExplanation} = useCopyToClipboard(explanation);
     return (
         <div className="explanation-pane">
             <div className="explanation-header">
@@ -81,6 +100,15 @@ function ExplanationPane(props: ExplanationPaneProps) {
                     onClick={onExplain}
                 >
                     <SparkleIcon />
+                </button>
+                <button
+                    className="explanation-copy-button"
+                    aria-label={copied ? "Copied" : "Copy explanation"}
+                    title={copied ? "Copied" : "Copy explanation"}
+                    disabled={!explanation}
+                    onClick={copyExplanation}
+                >
+                    {copied ? <CheckIcon /> : <CopyIcon />}
                 </button>
             </div>
             {checksList.length > 0 && (

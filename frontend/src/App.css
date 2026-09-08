@@ -682,7 +682,8 @@
     font-size: 12px;
 }
 
-.project-brief-refresh {
+.project-brief-refresh,
+.project-brief-copy {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -691,7 +692,8 @@
     background: none;
 }
 
-.project-brief-refresh:hover:not(:disabled) {
+.project-brief-refresh:hover:not(:disabled),
+.project-brief-copy:hover:not(:disabled) {
     color: var(--text-strong);
     border-color: var(--border-strong);
 }
@@ -733,13 +735,15 @@
     background-color: var(--border);
 }
 
-.explanation-toggle-button {
+.explanation-toggle-button,
+.explanation-copy-button {
     color: var(--text-muted);
     border-color: var(--border);
     background: none;
 }
 
-.explanation-toggle-button:hover:not(:disabled) {
+.explanation-toggle-button:hover:not(:disabled),
+.explanation-copy-button:hover:not(:disabled) {
     color: var(--text-strong);
     border-color: var(--border-strong);
 }
@@ -759,6 +763,7 @@
 }
 
 .explanation-toggle-button,
+.explanation-copy-button,
 .explain-button {
     display: flex;
     align-items: center;
