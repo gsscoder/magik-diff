@@ -682,6 +682,12 @@
     margin-top: 8px;
 }
 
+.project-brief-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .project-brief-use {
     display: flex;
     align-items: center;

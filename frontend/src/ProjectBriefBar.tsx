@@ -74,28 +74,30 @@ function ProjectBriefBar(props: ProjectBriefBarProps) {
                             />
                             Use for Explain
                         </label>
-                        <button
-                            className={[
-                                "project-brief-refresh",
-                                acquiring && "acquiring",
-                                state.Stale && "stale",
-                            ].filter(Boolean).join(" ")}
-                            aria-label="Refresh project brief"
-                            title={state.Stale ? "Source files changed — refresh the brief" : "Refresh project brief"}
-                            disabled={acquiring}
-                            onClick={onAcquire}
-                        >
-                            <RefreshIcon />
-                        </button>
-                        <button
-                            className="project-brief-copy"
-                            aria-label={copied ? "Copied" : "Copy project brief"}
-                            title={copied ? "Copied" : "Copy project brief"}
-                            disabled={!state.Brief.text}
-                            onClick={copyBrief}
-                        >
-                            {copied ? <CheckIcon /> : <CopyIcon />}
-                        </button>
+                        <div className="project-brief-action-buttons">
+                            <button
+                                className={[
+                                    "project-brief-refresh",
+                                    acquiring && "acquiring",
+                                    state.Stale && "stale",
+                                ].filter(Boolean).join(" ")}
+                                aria-label="Refresh project brief"
+                                title={state.Stale ? "Source files changed — refresh the brief" : "Refresh project brief"}
+                                disabled={acquiring}
+                                onClick={onAcquire}
+                            >
+                                <RefreshIcon />
+                            </button>
+                            <button
+                                className="project-brief-copy"
+                                aria-label={copied ? "Copied" : "Copy project brief"}
+                                title={copied ? "Copied" : "Copy project brief"}
+                                disabled={!state.Brief.text}
+                                onClick={copyBrief}
+                            >
+                                {copied ? <CheckIcon /> : <CopyIcon />}
+                            </button>
+                        </div>
                     </div>
                     {error && <p className="explain-error project-brief-error">{error}</p>}
                 </div>
