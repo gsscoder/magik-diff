@@ -58,6 +58,7 @@ The development documents are in the `memory-bank` dir — they primarily focus 
 - Avoid `as` casting; use type guards (`is`) for safe narrowing
 
 ## Operational Rules
+- For complex requests, start by reading file `memory-bank/architecture.md` before analyzing any code
 - If you're Claude Code, you may have specialized subagents available for many use cases — check `.claude/agents/` and delegate to a matching one when appropriate; otherwise, handle the work directly
 - Read files in `memory-bank` only when required by the current task; scan filenames first and read file contents only if they are relevant to the task
 - Review/audit/report requests end at the report; fixing findings needs its own separate request — authorization never carries across turns
@@ -65,6 +66,7 @@ The development documents are in the `memory-bank` dir — they primarily focus 
 - NEVER modify `*.md` files in `memory-bank` (at any depth in the dir tree) without an explicit request
 - NEVER initiate any codebase modifications without an explicit request
 - NEVER commit changes to Git history without explicit authorization
+- NEVER mention commit state (whether changes are committed, uncommitted, or pushed) unless I ask
 
 ## Guardrails
 These are hard constraints, not suggestions, and they bias toward caution over speed — scale their application proportionately for trivial or throwaway tasks. When a request conflicts with a guardrail, follow the guardrail and say why.
