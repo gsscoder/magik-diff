@@ -13,17 +13,37 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"mdiff/internal/config"
 )
 
 // requestTimeout bounds how long a single Explain call may take, so a hung
 // or slow-to-respond endpoint cannot wedge the caller forever.
 const requestTimeout = 180 * time.Second
 
+// maxRedirects matches the net/http default redirect limit.
+const maxRedirects = 10
+
 // httpClient is the client used for all Explain requests. Timeout is set
 // explicitly because http.DefaultClient has no timeout at all.
-var httpClient = &http.Client{Timeout: requestTimeout}
+var httpClient = &http.Client{Timeout: requestTimeout, CheckRedirect: checkRedirect}
+
+// checkRedirect applies the net/http default redirect limit and additionally
+// drops the Azure "api-key" header when the redirect leaves the original host.
+// net/http strips only Authorization, WWW-Authenticate and Cookie across hosts,
+// so without this the key would reach the redirect target.
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("llm: stopped after %d redirects", maxRedirects)
+	}
+	if req.URL.Host != via[0].URL.Host {
+		req.Header.Del("api-key")
+	}
+	return nil
+}
 
 // chatMessage is a single OpenAI-compatible chat message.
 type chatMessage struct {
@@ -72,11 +92,45 @@ func (e *RequestError) Error() string {
 	return fmt.Sprintf("llm: request failed with status %d: %s", e.StatusCode, e.Body)
 }
 
-// Explain sends prompt as a single user message to the chat-completions
-// endpoint at baseURL and returns the assistant's complete reply text.
+// endpointURL returns the chat-completions URL for ep.
 //
-// baseURL is the OpenAI-compatible API root (e.g. "https://api.openai.com/v1"
-// or an httptest.Server URL in tests); "/chat/completions" is appended to it.
+// For OpenAI-compatible endpoints it is BaseURL + "/chat/completions". For
+// Azure only the scheme, host and port of BaseURL are used, so both the plain
+// resource URL and the full "Target URI" copied from the Azure portal (with
+// its deployment path and api-version query) reach the same v1 endpoint.
+func endpointURL(ep config.LLM) (string, error) {
+	if ep.Provider != config.ProviderAzure {
+		return ep.BaseURL + "/chat/completions", nil
+	}
+	u, err := url.Parse(ep.BaseURL)
+	if err != nil {
+		return "", fmt.Errorf("llm: invalid Azure base URL %q: %w", ep.BaseURL, err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", fmt.Errorf("llm: invalid Azure base URL %q: want an absolute http(s) URL", ep.BaseURL)
+	}
+	return u.Scheme + "://" + u.Host + "/openai/v1/chat/completions", nil
+}
+
+// setAuth sets the provider-specific authentication header on req. An
+// OpenAI-compatible endpoint may run without a key, so its header is omitted
+// when the key is empty.
+func setAuth(req *http.Request, ep config.LLM) {
+	switch {
+	case ep.Provider == config.ProviderAzure:
+		req.Header.Set("api-key", ep.APIKey)
+	case ep.APIKey != "":
+		req.Header.Set("Authorization", "Bearer "+ep.APIKey)
+	}
+}
+
+// Explain sends prompt as a single user message to the chat-completions
+// endpoint described by ep and returns the assistant's complete reply text.
+//
+// ep.BaseURL is the OpenAI-compatible API root (e.g. "https://api.openai.com/v1"
+// or an httptest.Server URL in tests); see endpointURL for how the request URL
+// and authentication header are derived from ep.Provider. ep.Model is the
+// deployment name for Azure.
 //
 // The call is streaming: the server-sent response is consumed chunk by
 // chunk and onDelta, when non-nil, is called with each non-empty content
@@ -88,9 +142,9 @@ func (e *RequestError) Error() string {
 // Because the whole generation is now read inside the request,
 // requestTimeout is a wall-clock bound on the entire response, not just on
 // the response headers. The call is canceled early if ctx is canceled.
-func Explain(ctx context.Context, baseURL, model, apiKey, prompt string, onDelta func(string)) (string, error) {
+func Explain(ctx context.Context, ep config.LLM, prompt string, onDelta func(string)) (string, error) {
 	reqBody := chatCompletionRequest{
-		Model: model,
+		Model: ep.Model,
 		Messages: []chatMessage{
 			{Role: "user", Content: prompt},
 		},
@@ -102,18 +156,21 @@ func Explain(ctx context.Context, baseURL, model, apiKey, prompt string, onDelta
 		return "", fmt.Errorf("llm: failed to encode request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(payload))
+	endpoint, err := endpointURL(ep)
+	if err != nil {
+		return "", err
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("llm: failed to build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
-	}
+	setAuth(httpReq, ep)
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("llm: request to %s failed: %w", baseURL, err)
+		return "", fmt.Errorf("llm: request to %s failed: %w", ep.BaseURL, err)
 	}
 	defer resp.Body.Close()
 

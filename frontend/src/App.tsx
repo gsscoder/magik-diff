@@ -10,6 +10,7 @@ import {
     ChangedFiles,
     CommitFileDiff,
     CommitFiles,
+    DeleteAPIKey,
     Explain,
     FileDiff,
     GetConfig,
@@ -23,6 +24,7 @@ import {
     SaveConfig,
     SetAPIKey,
     VerifyLLMConfig,
+    Version,
 } from "../wailsjs/go/main/App";
 import {brief, checks, config, diffparse, gitdiff, main} from "../wailsjs/go/models";
 import DiffPane from "./DiffPane";
@@ -43,7 +45,25 @@ import {
 
 type RailMode = "changes" | "history";
 
-type VerifyResult = { kind: "success" } | { kind: "error"; message: string } | null;
+type DialogStatus = { kind: "success"; message: string } | { kind: "error"; message: string } | null;
+
+type Provider = "openai" | "azure";
+
+const PROVIDERS: { value: Provider; label: string }[] = [
+    {value: "openai", label: "OpenAI-compatible"},
+    {value: "azure", label: "Azure Foundry"},
+];
+
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+function isUnencryptedRemote(baseURL: string): boolean {
+    try {
+        const url = new URL(baseURL.trim());
+        return url.protocol === "http:" && !LOCAL_HOSTS.includes(url.hostname);
+    } catch {
+        return false;
+    }
+}
 
 const COMMIT_PAGE_SIZE = 200;
 
@@ -96,7 +116,7 @@ function App() {
     const [cfg, setCfg] = useState<config.Config>(new config.Config());
     const [hasKey, setHasKey] = useState(false);
     const [usedFallback, setUsedFallback] = useState(false);
-    const [modelConfigDialogOpen, setModelConfigDialogOpen] = useState(false);
+    const [llmConfigDialogOpen, setLlmConfigDialogOpen] = useState(false);
     const [aboutDialogOpen, setAboutDialogOpen] = useState(false);
 
     const [explanation, setExplanation] = useState<string>("");
@@ -164,7 +184,7 @@ function App() {
         }
     });
 
-    const ready = cfg.base_url !== "" && cfg.model !== "" && hasKey;
+    const ready = cfg.base_url !== "" && cfg.model !== "" && (cfg.provider !== "azure" || hasKey);
 
     useEffect(() => {
         IsGitRepo()
@@ -261,7 +281,7 @@ function App() {
                 setZoom(1);
             } else if (e.key === "m" || e.key === "M") {
                 e.preventDefault();
-                openModelConfigDialog();
+                openLlmConfigDialog();
             } else if (e.key === "b" || e.key === "B") {
                 e.preventDefault();
                 setRailVisible((v) => !v);
@@ -488,12 +508,12 @@ function App() {
             .catch((err) => setCheckResults((prev) => ({...prev, [check.Name]: {kind: "error", message: String(err)}})));
     }
 
-    function openModelConfigDialog() {
-        setModelConfigDialogOpen(true);
+    function openLlmConfigDialog() {
+        setLlmConfigDialogOpen(true);
     }
 
-    function closeModelConfigDialog() {
-        setModelConfigDialogOpen(false);
+    function closeLlmConfigDialog() {
+        setLlmConfigDialogOpen(false);
         checkReadiness();
     }
 
@@ -567,7 +587,7 @@ function App() {
     if (!repoValid) {
         return (
             <div id="App-shell">
-                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
+                {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenLlmConfig={openLlmConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
                 <div className="readiness-banner">
                     <span className="readiness-banner-icon">⚠</span>
                     <span className="readiness-banner-text">
@@ -585,7 +605,7 @@ function App() {
     return (
         <div id="App-shell">
             {/* TitleBar sits outside the zoomed #App-root: it's OS chrome, not zoomable content */}
-            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenModelConfig={openModelConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
+            {!zen && <TitleBar onOpenRepo={handleOpenFolder} onOpenLlmConfig={openLlmConfigDialog} onOpenAbout={openAboutDialog} railVisible={railVisible} onToggleRailVisible={() => setRailVisible((v) => !v)}/>}
             <div id="App-root" style={{zoom}}>
                 {openError && (
                     <div className="readiness-banner">
@@ -602,7 +622,7 @@ function App() {
                             {hasKey && usedFallback && " (API key loaded from environment variable fallback — OS keyring unavailable.)"}
                             {!hasKey && usedFallback && " (OS keyring unavailable and no API key found in the environment.)"}
                         </span>
-                        <button className="readiness-banner-action" onClick={openModelConfigDialog}>Config</button>
+                        <button className="readiness-banner-action" onClick={openLlmConfigDialog}>Config</button>
                         <button className="readiness-banner-action" onClick={() => setBannerDismissed(true)}>Dismiss</button>
                     </div>
                 )}
@@ -717,12 +737,12 @@ function App() {
                         onRunCheck={runCheck}
                     />
                 </div>
-                {modelConfigDialogOpen && (
-                    <ModelConfigDialog
+                {llmConfigDialogOpen && (
+                    <LlmConfigDialog
                         initialConfig={cfg}
                         hasKey={hasKey}
                         usedFallback={usedFallback}
-                        onClose={closeModelConfigDialog}
+                        onClose={closeLlmConfigDialog}
                     />
                 )}
                 {aboutDialogOpen && <AboutDialog onClose={closeAboutDialog} />}
@@ -732,99 +752,203 @@ function App() {
     )
 }
 
-function ModelConfigDialog(props: {
+function LlmConfigDialog(props: {
     initialConfig: config.Config;
     hasKey: boolean;
     usedFallback: boolean;
     onClose: () => void;
 }) {
+    const initialProvider: Provider = props.initialConfig.provider === "azure" ? "azure" : "openai";
+    const [provider, setProvider] = useState<Provider>(initialProvider);
     const [baseURL, setBaseURL] = useState(props.initialConfig.base_url);
     const [model, setModel] = useState(props.initialConfig.model);
     const [newKey, setNewKey] = useState("");
-    const [verifying, setVerifying] = useState(false);
-    const [verifyResult, setVerifyResult] = useState<VerifyResult>(null);
+    const [removeKeyPending, setRemoveKeyPending] = useState(false);
+    const [busy, setBusy] = useState<"verify" | "save" | null>(null);
+    const [status, setStatus] = useState<DialogStatus>(null);
+
+    const azure = provider === "azure";
+    const typedKey = newKey.trim();
+    const cleanBaseURL = baseURL.trim();
+    const cleanModel = model.trim();
+    const keyAvailable = props.hasKey && !removeKeyPending;
+    const connectionIncomplete = cleanBaseURL === "" || cleanModel === "" || (azure && !keyAvailable && typedKey === "");
+    const dirty =
+        provider !== initialProvider ||
+        cleanBaseURL !== props.initialConfig.base_url ||
+        cleanModel !== props.initialConfig.model ||
+        typedKey !== "" ||
+        removeKeyPending;
+
+    useEffect(() => {
+        if (busy !== null) {
+            return;
+        }
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key === "Escape") {
+                props.onClose();
+            }
+        }
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [busy, props.onClose]);
+
+    function currentConfig() {
+        return new config.Config({provider, base_url: cleanBaseURL, model: cleanModel});
+    }
 
     function save() {
-        const cfg = new config.Config({base_url: baseURL, model});
-        const tasks: Promise<unknown>[] = [SaveConfig(cfg)];
-        if (newKey !== "") {
-            tasks.push(SetAPIKey(newKey));
+        setBusy("save");
+        setStatus(null);
+        const tasks: Promise<unknown>[] = [SaveConfig(currentConfig())];
+        if (typedKey !== "") {
+            tasks.push(SetAPIKey(typedKey));
         }
         Promise.all(tasks)
+            .then(() => (removeKeyPending ? DeleteAPIKey() : undefined))
             .then(props.onClose)
-            .catch((err) => setVerifyResult({kind: "error", message: String(err)}));
+            .catch((err) => setStatus({kind: "error", message: String(err)}))
+            .finally(() => setBusy(null));
     }
 
     function verify() {
-        setVerifying(true);
-        setVerifyResult(null);
-        VerifyLLMConfig(baseURL, model, newKey)
-            .then(() => setVerifyResult({kind: "success"}))
-            .catch((err) => setVerifyResult({kind: "error", message: String(err)}))
-            .finally(() => setVerifying(false));
+        setBusy("verify");
+        setStatus(null);
+        const startedAt = performance.now();
+        VerifyLLMConfig(currentConfig(), typedKey)
+            .then(() => {
+                const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+                setStatus({kind: "success", message: `✓ Connected: ${cleanModel} answered in ${seconds} s`});
+            })
+            .catch((err) => setStatus({kind: "error", message: String(err)}))
+            .finally(() => setBusy(null));
     }
 
     return (
-        <div className="config-overlay" onClick={props.onClose}>
-            <div className="config-dialog" onClick={(e) => e.stopPropagation()}>
-                <h2>Model Config</h2>
+        <div className="config-overlay">
+            <form
+                className="config-dialog"
+                onClick={(e) => e.stopPropagation()}
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    save();
+                }}
+            >
+                <h2>LLM config</h2>
+                <p className="config-subtitle">
+                    Works with any OpenAI-compatible API: OpenAI, OpenRouter, Ollama, LM Studio, Azure.
+                </p>
+                <div className="view-toggle config-provider" role="group" aria-label="Connection mode">
+                    {PROVIDERS.map(({value, label}) => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={provider === value ? "active" : undefined}
+                            aria-pressed={provider === value}
+                            disabled={busy !== null}
+                            onClick={() => setProvider(value)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
                 <label className="config-field">
                     Base URL
                     <input
                         type="text"
+                        placeholder={azure ? "https://<resource>.cognitiveservices.azure.com" : "https://api.openai.com/v1"}
                         value={baseURL}
+                        disabled={busy !== null}
                         onChange={(e) => setBaseURL(e.target.value)}
                     />
+                    {azure && (
+                        <span className="config-hint">
+                            Resource endpoint. The full Target URI from the Azure portal also works.
+                        </span>
+                    )}
                 </label>
+                {isUnencryptedRemote(baseURL) && (
+                    <p className="config-warning">
+                        Warning: this URL uses http:// on a remote host. The API key and your code structure would travel unencrypted.
+                    </p>
+                )}
                 <label className="config-field">
-                    Model
+                    {azure ? "Deployment name" : "Model"}
                     <input
                         type="text"
                         value={model}
+                        disabled={busy !== null}
                         onChange={(e) => setModel(e.target.value)}
                     />
                 </label>
-                <label className="config-field">
-                    {props.hasKey
-                        ? props.usedFallback
-                            ? "API key: set (via environment fallback)"
-                            : "API key: set ✓"
-                        : "API key: not set"}
-                    <input
-                        type="password"
-                        placeholder={props.hasKey ? "Enter a new key to replace it" : "Enter API key"}
-                        value={newKey}
-                        onChange={(e) => setNewKey(e.target.value)}
-                    />
-                </label>
-                <div className="config-dialog-actions">
-                    <button
-                        disabled={verifying || baseURL === "" || model === "" || (!props.hasKey && newKey === "")}
-                        onClick={verify}
-                    >
-                        {verifying ? "Verifying…" : "Verify"}
-                    </button>
-                    <button onClick={props.onClose}>Cancel</button>
-                    <button onClick={save}>Save</button>
+                <div className="config-field">
+                    <label htmlFor="config-api-key">
+                        {removeKeyPending
+                            ? "API key: will be removed on Save"
+                            : props.hasKey
+                                ? props.usedFallback
+                                    ? "API key: set (via environment fallback)"
+                                    : "API key: set ✓"
+                                : "API key: not set"}
+                    </label>
+                    <div className="config-key-row">
+                        <input
+                            id="config-api-key"
+                            type="password"
+                            autoComplete="off"
+                            placeholder={props.hasKey ? "Enter a new key to replace it" : "Enter API key"}
+                            value={newKey}
+                            disabled={busy !== null}
+                            onChange={(e) => {
+                                setNewKey(e.target.value);
+                                if (e.target.value.trim() !== "") {
+                                    setRemoveKeyPending(false);
+                                }
+                            }}
+                        />
+                        {props.hasKey && !props.usedFallback && (
+                            <button type="button" disabled={busy !== null} onClick={() => setRemoveKeyPending(!removeKeyPending)}>
+                                {removeKeyPending ? "Undo" : "Remove key"}
+                            </button>
+                        )}
+                    </div>
+                    <span className="config-hint">
+                        {azure
+                            ? "Required. Saved in the OS keyring."
+                            : "Saved in the OS keyring. Leave empty for local servers without a key."}
+                    </span>
                 </div>
-                {verifyResult?.kind === "success" && (
-                    <p className="config-verify-success">✓ Connected successfully</p>
+                <div className="config-dialog-actions">
+                    <button type="button" disabled={busy !== null || connectionIncomplete} onClick={verify}>
+                        {busy === "verify" ? "Verifying…" : "Verify"}
+                    </button>
+                    <button type="button" disabled={busy !== null} onClick={props.onClose}>Cancel</button>
+                    <button type="submit" disabled={busy !== null || !dirty || connectionIncomplete}>Save</button>
+                </div>
+                {status?.kind === "success" && (
+                    <p className="config-verify-success" role="status">{status.message}</p>
                 )}
-                {verifyResult?.kind === "error" && (
-                    <p className="explain-error">{verifyResult.message}</p>
+                {status?.kind === "error" && (
+                    <p className="explain-error" role="alert">{status.message}</p>
                 )}
-            </div>
+            </form>
         </div>
     )
 }
 
 function AboutDialog(props: { onClose: () => void }) {
+    const [version, setVersion] = useState("");
+
+    useEffect(() => {
+        Version().then(setVersion);
+    }, []);
+
     return (
         <div className="config-overlay" onClick={props.onClose}>
             <div className="config-dialog about-dialog" onClick={(e) => e.stopPropagation()}>
                 <h2>Magik Diff</h2>
                 <div className="about-meta">
-                    <div><span>Version</span><span>0.4.0</span></div>
+                    <div><span>Version</span><span>{version}</span></div>
                     <div><span>Author</span><span>koder0x</span></div>
                     <div><span>License</span><span>MIT</span></div>
                     <div><span>Stack</span><span>Go, Wails, React, TypeScript</span></div>
@@ -833,7 +957,7 @@ function AboutDialog(props: { onClose: () => void }) {
                 <div className="about-shortcuts">
                     <div><span>F11</span><span>Toggle zen mode</span></div>
                     <div><span>Ctrl+B</span><span>Show/hide Changes/History pane</span></div>
-                    <div><span>Ctrl+M</span><span>Open model config</span></div>
+                    <div><span>Ctrl+M</span><span>Open LLM config</span></div>
                     <div><span>Ctrl+ +/-</span><span>Zoom in / out</span></div>
                     <div><span>Ctrl+0</span><span>Reset zoom</span></div>
                     <div><span>Esc</span><span>Close open menu</span></div>

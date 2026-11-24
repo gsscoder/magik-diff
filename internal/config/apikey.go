@@ -21,6 +21,9 @@ const envAPIKey = "MDIFF_OPENAI_API_KEY"
 // can be swapped out in tests without touching the real OS keyring.
 type keyringGetFunc func(service, user string) (string, error)
 
+// keyringDeleteFunc matches keyring.Delete's signature, for the same reason.
+type keyringDeleteFunc func(service, user string) error
+
 // GetAPIKey returns the configured API key. It checks the OS keyring first.
 //
 //   - If the keyring has no entry (keyring.ErrNotFound), that is a normal
@@ -49,4 +52,17 @@ func getAPIKey(get keyringGetFunc) (key string, usedFallback bool) {
 // SetAPIKey stores the API key in the OS keyring.
 func SetAPIKey(key string) error {
 	return keyring.Set(keyringService, keyringAccount, key)
+}
+
+// DeleteAPIKey removes the API key from the OS keyring. A key that was never
+// set is not an error.
+func DeleteAPIKey() error {
+	return deleteAPIKey(keyring.Delete)
+}
+
+func deleteAPIKey(del keyringDeleteFunc) error {
+	if err := del(keyringService, keyringAccount); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return err
+	}
+	return nil
 }

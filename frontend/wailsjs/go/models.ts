@@ -116,6 +116,7 @@ export namespace checks {
 export namespace config {
 	
 	export class Config {
+	    provider: string;
 	    base_url: string;
 	    model: string;
 	
@@ -125,6 +126,7 @@ export namespace config {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
 	        this.base_url = source["base_url"];
 	        this.model = source["model"];
 	    }

@@ -149,6 +149,41 @@
     color: var(--text-muted);
 }
 
+.config-subtitle {
+    margin: -8px 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.config-provider {
+    align-self: flex-start;
+}
+
+.config-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.config-warning {
+    margin: 0;
+    font-size: 12px;
+    color: var(--modified);
+}
+
+.config-key-row {
+    display: flex;
+    gap: 8px;
+}
+
+.config-key-row input {
+    flex: 1;
+    min-width: 0;
+}
+
+.config-key-row button {
+    flex-shrink: 0;
+}
+
 .config-dialog-actions {
     display: flex;
     justify-content: space-between;

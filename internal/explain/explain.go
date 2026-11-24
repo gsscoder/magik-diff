@@ -303,25 +303,20 @@ func findCheck(checkName string) (checks.Check, error) {
 // model, promptKind, and projectBrief match a previous call. onDelta, when
 // non-nil, receives each chunk of the reply as it is generated; a cache hit
 // returns the stored text immediately and emits no deltas at all. It
-// returns a clear error, rather than an empty string, if the base URL,
-// model, or API key is not configured.
+// returns a clear error, rather than an empty string, if the LLM settings
+// are incomplete.
 func (s *Service) runExplain(ctx context.Context, diff, promptKind, projectBrief, prompt string, onDelta func(string)) (string, error) {
-	cfg, err := config.Load()
+	ep, err := config.LoadLLM()
 	if err != nil {
-		return "", err
-	}
-	apiKey, _ := config.GetAPIKey()
-
-	if cfg.BaseURL == "" || cfg.Model == "" || apiKey == "" {
-		return "", fmt.Errorf("mdiff is not configured for Explain: set the base URL, model, and API key first")
+		return "", fmt.Errorf("mdiff is not configured for Explain: %w", err)
 	}
 
-	key := cacheKey(diff, cfg.Model, promptKind, projectBrief)
+	key := cacheKey(diff, ep.Model, promptKind, projectBrief)
 	if cached, ok := s.cached(key); ok {
 		return cached, nil
 	}
 
-	result, err := llm.Explain(ctx, cfg.BaseURL, cfg.Model, apiKey, prompt, onDelta)
+	result, err := llm.Explain(ctx, ep, prompt, onDelta)
 	if err != nil {
 		return "", err
 	}

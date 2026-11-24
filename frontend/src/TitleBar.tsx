@@ -71,7 +71,7 @@ function InfoIcon() {
 
 type TitleBarProps = {
     onOpenRepo: () => void;
-    onOpenModelConfig: () => void;
+    onOpenLlmConfig: () => void;
     onOpenAbout: () => void;
     railVisible: boolean;
     onToggleRailVisible: () => void;
@@ -83,7 +83,7 @@ declare global {
     }
 }
 
-function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onToggleRailVisible}: TitleBarProps) {
+function TitleBar({onOpenRepo, onOpenLlmConfig, onOpenAbout, railVisible, onToggleRailVisible}: TitleBarProps) {
     const [maximised, setMaximised] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     // Linux windows are decorated (native title bar + resize border, see
@@ -211,10 +211,10 @@ function TitleBar({onOpenRepo, onOpenModelConfig, onOpenAbout, railVisible, onTo
                             className="titlebar-menu-item"
                             onClick={() => {
                                 setMenuOpen(false);
-                                onOpenModelConfig();
+                                onOpenLlmConfig();
                             }}
                         >
-                            <span>Model config</span>
+                            <span>LLM config</span>
                             <span className="titlebar-menu-shortcut">Ctrl+M</span>
                         </button>
                     </div>

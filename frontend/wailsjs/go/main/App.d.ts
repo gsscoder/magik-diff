@@ -19,6 +19,8 @@ export function CommitFiles(arg1:string):Promise<Array<gitdiff.FileChange>>;
 
 export function CurrentBranch():Promise<string>;
 
+export function DeleteAPIKey():Promise<void>;
+
 export function Explain(arg1:string,arg2:Array<string>,arg3:boolean):Promise<string>;
 
 export function FileDiff(arg1:string):Promise<diffparse.FileDiff>;
@@ -43,6 +45,8 @@ export function SaveConfig(arg1:config.Config):Promise<void>;
 
 export function SetAPIKey(arg1:string):Promise<void>;
 
-export function VerifyLLMConfig(arg1:string,arg2:string,arg3:string):Promise<void>;
+export function VerifyLLMConfig(arg1:config.Config,arg2:string):Promise<void>;
+
+export function Version():Promise<string>;
 
 export function WorkingDir():Promise<string>;

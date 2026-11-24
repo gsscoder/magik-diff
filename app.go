@@ -84,6 +84,11 @@ func (a *App) WorkingDir() (string, error) {
 	return a.repo.Dir(), nil
 }
 
+// Version returns the application version shown in the About dialog.
+func (a *App) Version() string {
+	return version
+}
+
 // IsGitRepo reports whether the active repo — resolved at startup from the
 // process's working directory, or by OpenAndSwitchRepo — is a valid git
 // repository. Unlike a bare stat of ".git" in the working directory, the
@@ -205,16 +210,27 @@ func (a *App) SetAPIKey(key string) error {
 	return config.SetAPIKey(key)
 }
 
-// VerifyLLMConfig sends a minimal chat-completions request to baseURL/model
-// using apiKey, to confirm the endpoint is reachable and credentials are
-// valid before the user saves them. If apiKey is empty, the currently
-// stored key (if any) is used instead. It returns an error describing the
-// failure, or nil on success.
-func (a *App) VerifyLLMConfig(baseURL, model, apiKey string) error {
+// DeleteAPIKey removes the stored API key from the OS keyring. Deleting a key
+// that is not stored is not an error.
+func (a *App) DeleteAPIKey() error {
+	return config.DeleteAPIKey()
+}
+
+// VerifyLLMConfig sends a minimal chat-completions request using cfg and
+// apiKey, to confirm the endpoint is reachable and credentials are valid
+// before the user saves them. If apiKey is empty, the currently stored key (if
+// any) is used instead. cfg is cleaned and checked for completeness the same
+// way as at call time. It returns an error describing the failure, or nil on
+// success.
+func (a *App) VerifyLLMConfig(cfg config.Config, apiKey string) error {
 	if apiKey == "" {
 		apiKey, _ = config.GetAPIKey()
 	}
-	_, err := llm.Explain(a.ctx, baseURL, model, apiKey, "Hi", nil)
+	ep, err := config.NewLLM(cfg, apiKey)
+	if err != nil {
+		return err
+	}
+	_, err = llm.Explain(a.ctx, ep, "Hi", nil)
 	return err
 }
 

@@ -26,6 +26,10 @@ export function CurrentBranch() {
   return window['go']['main']['App']['CurrentBranch']();
 }
 
+export function DeleteAPIKey() {
+  return window['go']['main']['App']['DeleteAPIKey']();
+}
+
 export function Explain(arg1, arg2, arg3) {
   return window['go']['main']['App']['Explain'](arg1, arg2, arg3);
 }
@@ -74,8 +78,12 @@ export function SetAPIKey(arg1) {
   return window['go']['main']['App']['SetAPIKey'](arg1);
 }
 
-export function VerifyLLMConfig(arg1, arg2, arg3) {
-  return window['go']['main']['App']['VerifyLLMConfig'](arg1, arg2, arg3);
+export function VerifyLLMConfig(arg1, arg2) {
+  return window['go']['main']['App']['VerifyLLMConfig'](arg1, arg2);
+}
+
+export function Version() {
+  return window['go']['main']['App']['Version']();
 }
 
 export function WorkingDir() {

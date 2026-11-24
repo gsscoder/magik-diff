@@ -305,8 +305,7 @@ func extractionPrompt(combined string, truncated bool) string {
 // Acquire scans root for AI-agent instruction files, sends their content
 // through the configured LLM to extract a factual project brief, persists
 // the result, and returns it. It returns a clear error if Scan finds no
-// instruction files, or if the base URL, model, or API key is not
-// configured.
+// instruction files, or if the LLM settings are incomplete.
 func Acquire(ctx context.Context, root string) (Brief, error) {
 	sources, err := Scan(root)
 	if err != nil {
@@ -322,16 +321,12 @@ func Acquire(ctx context.Context, root string) (Brief, error) {
 	}
 	prompt := extractionPrompt(combined, truncated)
 
-	cfg, err := config.Load()
+	ep, err := config.LoadLLM()
 	if err != nil {
-		return Brief{}, err
-	}
-	apiKey, _ := config.GetAPIKey()
-	if cfg.BaseURL == "" || cfg.Model == "" || apiKey == "" {
-		return Brief{}, fmt.Errorf("mdiff is not configured for Explain: set the base URL, model, and API key first")
+		return Brief{}, fmt.Errorf("mdiff is not configured for Explain: %w", err)
 	}
 
-	result, err := llm.Explain(ctx, cfg.BaseURL, cfg.Model, apiKey, prompt, nil)
+	result, err := llm.Explain(ctx, ep, prompt, nil)
 	if err != nil {
 		return Brief{}, err
 	}

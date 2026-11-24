@@ -56,3 +56,28 @@ func TestGetAPIKeyBackendUnavailableAndNoEnvVar(t *testing.T) {
 		t.Fatalf("getAPIKey() = (%q, %v), want (\"\", true)", key, usedFallback)
 	}
 }
+
+func TestDeleteAPIKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		delErr  error
+		wantErr bool
+	}{
+		{name: "deleted", delErr: nil},
+		{name: "missing key is not an error", delErr: keyring.ErrNotFound},
+		{name: "other failure is returned", delErr: errors.New("no keyring backend reachable"), wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			del := func(service, user string) error { return tt.delErr }
+
+			err := deleteAPIKey(del)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("deleteAPIKey() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr && !errors.Is(err, tt.delErr) {
+				t.Fatalf("deleteAPIKey() error = %v, want it to wrap %v", err, tt.delErr)
+			}
+		})
+	}
+}

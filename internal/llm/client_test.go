@@ -12,7 +12,14 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"mdiff/internal/config"
 )
+
+// openAIEndpoint returns an OpenAI-compatible endpoint at baseURL.
+func openAIEndpoint(baseURL string) config.LLM {
+	return config.LLM{Provider: config.ProviderOpenAI, BaseURL: baseURL, Model: "gpt-4o-mini", APIKey: "test-key"}
+}
 
 // writeSSE writes deltas to w as an OpenAI-compatible server-sent event
 // stream: a role-only opening chunk (which carries no content and must be
@@ -50,7 +57,7 @@ func TestExplain_Success(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	got, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff: +foo -bar", nil)
+	got, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff: +foo -bar", nil)
 	if err != nil {
 		t.Fatalf("Explain returned unexpected error: %v", err)
 	}
@@ -75,7 +82,7 @@ func TestExplain_StreamsDeltasInOrder(t *testing.T) {
 	defer ts.Close()
 
 	var got []string
-	full, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", func(chunk string) {
+	full, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", func(chunk string) {
 		got = append(got, chunk)
 	})
 	if err != nil {
@@ -116,7 +123,7 @@ func TestExplain_DeltasArriveBeforeTheResponseEnds(t *testing.T) {
 	defer ts.Close()
 
 	var once sync.Once
-	got, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", func(string) {
+	got, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", func(string) {
 		once.Do(func() { close(first) })
 	})
 	if err != nil {
@@ -145,7 +152,7 @@ func TestExplain_NonSuccessStatus(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+			_, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", nil)
 			if err == nil {
 				t.Fatal("Explain() expected an error, got nil")
 			}
@@ -172,7 +179,7 @@ func TestExplain_MalformedJSON(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+	_, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", nil)
 	if err == nil {
 		t.Fatal("Explain() expected an error for malformed JSON, got nil")
 	}
@@ -192,7 +199,7 @@ func TestExplain_EmptyStream(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	got, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+	got, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", nil)
 	if err == nil {
 		t.Fatal("Explain() expected an error for a stream carrying no content, got nil")
 	}
@@ -209,7 +216,7 @@ func TestExplain_ConnectionFailure(t *testing.T) {
 	unreachableURL := ts.URL
 	ts.Close()
 
-	_, err := Explain(context.Background(), unreachableURL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+	_, err := Explain(context.Background(), openAIEndpoint(unreachableURL), "explain this diff", nil)
 	if err == nil {
 		t.Fatal("Explain() expected a connection error, got nil")
 	}
@@ -240,7 +247,7 @@ func TestExplain_ClientTimeout(t *testing.T) {
 	httpClient.Timeout = 50 * time.Millisecond
 	defer func() { httpClient.Timeout = orig }()
 
-	_, err := Explain(context.Background(), ts.URL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+	_, err := Explain(context.Background(), openAIEndpoint(ts.URL), "explain this diff", nil)
 	if err == nil {
 		t.Fatal("Explain() expected a timeout error, got nil")
 	}
@@ -265,11 +272,162 @@ func TestExplain_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := Explain(ctx, ts.URL, "gpt-4o-mini", "test-key", "explain this diff", nil)
+	_, err := Explain(ctx, openAIEndpoint(ts.URL), "explain this diff", nil)
 	if err == nil {
 		t.Fatal("Explain() expected a context deadline error, got nil")
 	}
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Explain() error = %v, want it to wrap context.DeadlineExceeded", err)
+	}
+}
+
+// captureHeaders returns a server that replies with a one-delta stream and
+// records the request path and headers of the last request.
+func captureHeaders(t *testing.T) (ts *httptest.Server, last func() (path string, header http.Header)) {
+	t.Helper()
+	var (
+		mu     sync.Mutex
+		path   string
+		header http.Header
+	)
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		path, header = r.URL.Path, r.Header.Clone()
+		mu.Unlock()
+		writeSSE(t, w, []string{"ok"})
+	}))
+	t.Cleanup(ts.Close)
+	return ts, func() (string, http.Header) {
+		mu.Lock()
+		defer mu.Unlock()
+		return path, header
+	}
+}
+
+func TestExplain_AzureEndpoint(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL func(origin string) string
+	}{
+		{name: "plain resource URL", baseURL: func(origin string) string { return origin }},
+		{name: "full target URI", baseURL: func(origin string) string {
+			return origin + "/openai/deployments/my-deploy/chat/completions?api-version=2024-02-01"
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, last := captureHeaders(t)
+			ep := config.LLM{Provider: config.ProviderAzure, BaseURL: tt.baseURL(ts.URL), Model: "my-deploy", APIKey: "azure-key"}
+
+			if _, err := Explain(context.Background(), ep, "explain this diff", nil); err != nil {
+				t.Fatalf("Explain returned unexpected error: %v", err)
+			}
+			path, _ := last()
+			if want := "/openai/v1/chat/completions"; path != want {
+				t.Errorf("request path = %q, want %q", path, want)
+			}
+		})
+	}
+}
+
+func TestExplain_AzureInvalidBaseURL(t *testing.T) {
+	for _, baseURL := range []string{"my-resource.openai.azure.com", "ftp://example.com", "https://", "http://[::1"} {
+		t.Run(baseURL, func(t *testing.T) {
+			ep := config.LLM{Provider: config.ProviderAzure, BaseURL: baseURL, Model: "my-deploy", APIKey: "azure-key"}
+
+			_, err := Explain(context.Background(), ep, "explain this diff", nil)
+			if err == nil {
+				t.Fatal("Explain() expected an error for an invalid Azure base URL, got nil")
+			}
+			if !strings.Contains(err.Error(), baseURL) {
+				t.Errorf("Explain() error = %q, want it to name the base URL %q", err, baseURL)
+			}
+		})
+	}
+}
+
+func TestExplain_AzureSendsAPIKeyHeaderOnly(t *testing.T) {
+	ts, last := captureHeaders(t)
+	ep := config.LLM{Provider: config.ProviderAzure, BaseURL: ts.URL, Model: "my-deploy", APIKey: "azure-key"}
+
+	if _, err := Explain(context.Background(), ep, "explain this diff", nil); err != nil {
+		t.Fatalf("Explain returned unexpected error: %v", err)
+	}
+	_, header := last()
+	if got := header.Get("api-key"); got != "azure-key" {
+		t.Errorf("api-key header = %q, want %q", got, "azure-key")
+	}
+	if got := header.Get("Authorization"); got != "" {
+		t.Errorf("Authorization header = %q, want none", got)
+	}
+}
+
+func TestExplain_AzureAPIKeyRedirect(t *testing.T) {
+	tests := []struct {
+		name       string
+		crossHost  bool
+		wantAPIKey string
+	}{
+		{name: "other host", crossHost: true, wantAPIKey: ""},
+		{name: "same host", crossHost: false, wantAPIKey: "azure-key"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			target, last := captureHeaders(t)
+			var origin *httptest.Server
+			origin = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/final" {
+					target.Config.Handler.ServeHTTP(w, r)
+					return
+				}
+				location := origin.URL + "/final"
+				if tt.crossHost {
+					location = target.URL + "/final"
+				}
+				http.Redirect(w, r, location, http.StatusTemporaryRedirect)
+			}))
+			t.Cleanup(origin.Close)
+			ep := config.LLM{Provider: config.ProviderAzure, BaseURL: origin.URL, Model: "my-deploy", APIKey: "azure-key"}
+
+			if _, err := Explain(context.Background(), ep, "explain this diff", nil); err != nil {
+				t.Fatalf("Explain returned unexpected error: %v", err)
+			}
+			_, header := last()
+			if got := header.Get("api-key"); got != tt.wantAPIKey {
+				t.Errorf("api-key header at redirect target = %q, want %q", got, tt.wantAPIKey)
+			}
+		})
+	}
+}
+
+func TestExplain_OpenAIAuthHeader(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiKey     string
+		wantHeader string
+	}{
+		{name: "key set", apiKey: "test-key", wantHeader: "Bearer test-key"},
+		{name: "empty key", apiKey: "", wantHeader: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, last := captureHeaders(t)
+			ep := openAIEndpoint(ts.URL)
+			ep.APIKey = tt.apiKey
+
+			if _, err := Explain(context.Background(), ep, "explain this diff", nil); err != nil {
+				t.Fatalf("Explain returned unexpected error: %v", err)
+			}
+			_, header := last()
+			if got := header.Get("Authorization"); got != tt.wantHeader {
+				t.Errorf("Authorization header = %q, want %q", got, tt.wantHeader)
+			}
+			if _, ok := header["Api-Key"]; ok {
+				t.Error("OpenAI request carried an api-key header, want none")
+			}
+		})
 	}
 }
