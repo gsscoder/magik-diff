@@ -2,14 +2,19 @@ package brief
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
-	"unicode/utf8"
+
+	"mdiff/internal/config"
 )
 
 // writeFile writes content to name under dir, creating parent directories
@@ -22,66 +27,6 @@ func writeFile(t *testing.T, dir, name, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write %s: %v", name, err)
-	}
-}
-
-func TestScan_NoCandidatesReturnsNilNil(t *testing.T) {
-	dir := t.TempDir()
-
-	got, err := Scan(dir)
-	if err != nil {
-		t.Fatalf("Scan() error = %v, want nil", err)
-	}
-	if got != nil {
-		t.Fatalf("Scan() = %+v, want nil", got)
-	}
-}
-
-func TestScan_StopsAtThreeInPriorityOrder(t *testing.T) {
-	dir := t.TempDir()
-	// Four of the five candidates present, each with distinct content, so
-	// dedup does not interfere with the "top 3" check.
-	writeFile(t, dir, "AGENTS.md", "agents content")
-	writeFile(t, dir, "CLAUDE.md", "claude content")
-	writeFile(t, dir, ".github/copilot-instructions.md", "copilot content")
-	writeFile(t, dir, "GEMINI.md", "gemini content")
-
-	got, err := Scan(dir)
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	want := []string{"AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"}
-	if len(got) != len(want) {
-		t.Fatalf("Scan() returned %d sources, want %d: %+v", len(got), len(want), got)
-	}
-	for i, w := range want {
-		if got[i].Path != w {
-			t.Errorf("Scan()[%d].Path = %q, want %q", i, got[i].Path, w)
-		}
-	}
-}
-
-func TestScan_DedupDropsByteIdenticalFile(t *testing.T) {
-	dir := t.TempDir()
-	same := "identical instructions\n"
-	writeFile(t, dir, "AGENTS.md", same)
-	writeFile(t, dir, "CLAUDE.md", same)
-	writeFile(t, dir, "GEMINI.md", "distinct content")
-
-	got, err := Scan(dir)
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	if len(got) != 2 {
-		t.Fatalf("Scan() returned %d sources, want 2 (byte-identical CLAUDE.md deduped): %+v", len(got), got)
-	}
-	if got[0].Path != "AGENTS.md" || got[1].Path != "GEMINI.md" {
-		t.Fatalf("Scan() = %+v, want [AGENTS.md, GEMINI.md]", got)
-	}
-	if got[0].Hash != hashBytes([]byte(same)) {
-		t.Errorf("Scan()[0].Hash = %q, want sha256 of shared content", got[0].Hash)
 	}
 }
 
@@ -102,33 +47,6 @@ func TestStorePath_DoesNotCollideAcrossSeparatorBoundaries(t *testing.T) {
 
 	if p1 == p2 {
 		t.Fatalf("storePath collided for distinct roots %q and %q: both = %q", root1, root2, p1)
-	}
-}
-
-func TestSourcesContent_TruncatesOnUTF8Boundary(t *testing.T) {
-	dir := t.TempDir()
-	prefix := fmt.Sprintf("--- %s ---\n", "AGENTS.md")
-	// Pad so a 3-byte rune ("—") straddles the maxPromptInputBytes cutoff:
-	// its first byte lands at the last kept position, its remaining two
-	// bytes fall just past it.
-	padLen := maxPromptInputBytes - len(prefix) - 1
-	content := strings.Repeat("a", padLen) + "—" + strings.Repeat("a", 100)
-	writeFile(t, dir, "AGENTS.md", content)
-
-	sources, err := Scan(dir)
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-
-	combined, truncated, err := sourcesContent(dir, sources)
-	if err != nil {
-		t.Fatalf("sourcesContent() error = %v", err)
-	}
-	if !truncated {
-		t.Fatal("sourcesContent() truncated = false, want true")
-	}
-	if !utf8.ValidString(combined) {
-		t.Fatal("sourcesContent() returned invalid UTF-8 at the truncation boundary")
 	}
 }
 
@@ -153,63 +71,14 @@ func TestStorePath_CaseInsensitiveOnWindows(t *testing.T) {
 	}
 }
 
-func TestStale(t *testing.T) {
-	base := []Source{
-		{Path: "AGENTS.md", Hash: "aaa"},
-		{Path: "CLAUDE.md", Hash: "bbb"},
-	}
-
-	tests := map[string]struct {
-		current []Source
-		want    bool
-	}{
-		"identical sets, different order": {
-			current: []Source{
-				{Path: "CLAUDE.md", Hash: "bbb"},
-				{Path: "AGENTS.md", Hash: "aaa"},
-			},
-			want: false,
-		},
-		"changed hash": {
-			current: []Source{
-				{Path: "AGENTS.md", Hash: "ccc"},
-				{Path: "CLAUDE.md", Hash: "bbb"},
-			},
-			want: true,
-		},
-		"added source": {
-			current: []Source{
-				{Path: "AGENTS.md", Hash: "aaa"},
-				{Path: "CLAUDE.md", Hash: "bbb"},
-				{Path: "GEMINI.md", Hash: "ddd"},
-			},
-			want: true,
-		},
-		"removed source": {
-			current: []Source{
-				{Path: "AGENTS.md", Hash: "aaa"},
-			},
-			want: true,
-		},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			if got := Stale(base, tt.current); got != tt.want {
-				t.Errorf("Stale() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSaveThenLoadRoundTrip(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
 
 	want := Brief{
 		RepoPath: root,
-		Sources:  []Source{{Path: "AGENTS.md", Hash: "aaa"}},
-		Text:     "a factual project brief",
+		Files:    []string{"README.md", "docs/guide.md"},
+		Text:     "- a factual project brief",
 	}
 	if err := Save(want); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -243,45 +112,19 @@ func TestLoad_MissingFileReturnsNotStored(t *testing.T) {
 	}
 }
 
-func TestAcquire_NoSourcesReturnsClearError(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	dir := t.TempDir()
-
-	_, err := Acquire(context.Background(), dir)
-	if err == nil {
-		t.Fatal("Acquire() error = nil, want error for a repo with no instruction files")
-	}
-	if err.Error() != "no AI instruction files found in this repository" {
-		t.Errorf("Acquire() error = %q, want %q", err.Error(), "no AI instruction files found in this repository")
-	}
-}
-
 func TestGetState(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	root := t.TempDir()
-	writeFile(t, root, "AGENTS.md", "agents content")
 
-	// No stored brief yet.
 	state, err := GetState(root)
 	if err != nil {
 		t.Fatalf("GetState() error = %v", err)
 	}
-	if !state.HasSources {
-		t.Error("GetState().HasSources = false, want true")
-	}
-	if state.Stored {
-		t.Error("GetState().Stored = true, want false before any Save")
-	}
-	if len(state.Sources) != 1 || state.Sources[0].Path != "AGENTS.md" {
-		t.Errorf("GetState().Sources = %+v, want [AGENTS.md]", state.Sources)
+	if !reflect.DeepEqual(state, State{}) {
+		t.Errorf("GetState() = %+v, want zero-value State before any Save", state)
 	}
 
-	// Persist a brief matching the current scan: not stale.
-	sources, err := Scan(root)
-	if err != nil {
-		t.Fatalf("Scan() error = %v", err)
-	}
-	stored := Brief{RepoPath: root, Sources: sources, Text: "brief text"}
+	stored := Brief{RepoPath: root, Files: []string{"README.md"}, Text: "- brief text"}
 	if err := Save(stored); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
@@ -290,23 +133,222 @@ func TestGetState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetState() error = %v", err)
 	}
-	if !state.Stored {
-		t.Error("GetState().Stored = false, want true after Save")
+	if want := (State{Stored: true, Brief: stored}); !reflect.DeepEqual(state, want) {
+		t.Errorf("GetState() = %+v, want %+v", state, want)
 	}
-	if state.Stale {
-		t.Error("GetState().Stale = true, want false when sources are unchanged")
-	}
-	if !reflect.DeepEqual(state.Brief, stored) {
-		t.Errorf("GetState().Brief = %+v, want %+v", state.Brief, stored)
+}
+
+func TestCheckSelection(t *testing.T) {
+	docs := []DocFile{{Path: "README.md"}, {Path: "docs/a.md"}}
+	for i := range maxFiles {
+		docs = append(docs, DocFile{Path: fmt.Sprintf("doc%d.md", i)})
 	}
 
-	// Change the source content: now stale.
-	writeFile(t, root, "AGENTS.md", "changed content")
-	state, err = GetState(root)
-	if err != nil {
-		t.Fatalf("GetState() error = %v", err)
+	tests := map[string]struct {
+		files []string
+		want  string
+	}{
+		"listed docs":          {files: []string{"README.md", "docs/a.md"}, want: ""},
+		"at most the file cap": {files: []string{"doc0.md", "doc1.md", "doc2.md", "doc3.md", "doc4.md"}, want: ""},
+		"empty":                {files: nil, want: "Select at least one file."},
+		"over the file cap":    {files: []string{"README.md", "doc0.md", "doc1.md", "doc2.md", "doc3.md", "doc4.md"}, want: "Select at most 5 files."},
+		"not a doc":            {files: []string{"README.md", "src/main.go"}, want: "Not a documentation file of this repo: src/main.go"},
+		"outside the repo":     {files: []string{"../README.md"}, want: "Not a documentation file of this repo: ../README.md"},
+		"missing doc":          {files: []string{"docs/missing.md"}, want: "Not a documentation file of this repo: docs/missing.md"},
 	}
-	if !state.Stale {
-		t.Error("GetState().Stale = false, want true after the source file changed")
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := checkSelection(docs, tt.files)
+			got := ""
+			if err != nil {
+				got = err.Error()
+			}
+			if got != tt.want {
+				t.Errorf("checkSelection(%q) error = %q, want %q", tt.files, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckBudget_ErrorNamesTheLimit(t *testing.T) {
+	if err := checkBudget(strings.Repeat("a", maxPromptTokens*4+3)); err != nil {
+		t.Errorf("checkBudget(at the limit) error = %v, want nil", err)
+	}
+	err := checkBudget(strings.Repeat("a", maxPromptTokens*4+4))
+	want := "The selected files are too large for one request (about 100001 tokens, the limit is 100000). Select fewer files."
+	if err == nil || err.Error() != want {
+		t.Errorf("checkBudget(over the limit) error = %v, want %q", err, want)
+	}
+}
+
+// llmStub is an httptest.Server that records the prompt of every request
+// and replies with the next of its replies, streamed as a one-chunk
+// server-sent event stream.
+type llmStub struct {
+	*httptest.Server
+	mu      sync.Mutex
+	prompts []string
+}
+
+func newLLMStub(t *testing.T, replies ...string) *llmStub {
+	t.Helper()
+	stub := &llmStub{}
+	stub.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Messages) != 1 {
+			t.Errorf("llmStub: want one message, got %+v (decode error %v)", req, err)
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		stub.mu.Lock()
+		call := len(stub.prompts)
+		stub.prompts = append(stub.prompts, req.Messages[0].Content)
+		stub.mu.Unlock()
+		if call >= len(replies) {
+			t.Errorf("llmStub: unexpected request %d", call+1)
+			http.Error(w, "no reply left", http.StatusInternalServerError)
+			return
+		}
+		content, err := json.Marshal(replies[call])
+		if err != nil {
+			t.Errorf("llmStub: marshal reply: %v", err)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "data: {\"choices\":[{\"delta\":{\"content\":%s}}]}\n\n", content)
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	t.Cleanup(stub.Close)
+	return stub
+}
+
+// requests returns the prompts received so far.
+func (s *llmStub) requests() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.prompts...)
+}
+
+// configureForTest points package config at a fresh temp config directory
+// with baseURL and a model saved, and makes an API key available via the
+// MDIFF_OPENAI_API_KEY env-var fallback config.GetAPIKey uses when no OS
+// keyring is reachable.
+func configureForTest(t *testing.T, baseURL string) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("MDIFF_OPENAI_API_KEY", "test-key")
+	if err := config.Save(config.Config{BaseURL: baseURL, Model: "test-model"}); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+}
+
+func TestGenerate_InvalidRequestFailsBeforeAnyLLMCall(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "README.md", "About the app")
+	writeFile(t, dir, "main.go", "package main")
+	writeFile(t, dir, "docs/big.md", strings.Repeat("a", maxPromptTokens*4))
+	bigPrompt := prompt(overviewPrompt, docBlock("docs/big.md", strings.Repeat("a", maxPromptTokens*4)))
+
+	tests := map[string]struct {
+		files []string
+		want  string
+	}{
+		"empty selection": {files: nil, want: "Select at least one file."},
+		"too many files":  {files: []string{"a.md", "b.md", "c.md", "d.md", "e.md", "f.md"}, want: "Select at most 5 files."},
+		"not a doc":       {files: []string{"README.md", "main.go"}, want: "Not a documentation file of this repo: main.go"},
+		"too large": {
+			files: []string{"docs/big.md"},
+			want:  fmt.Sprintf("The selected files are too large for one request (about %d tokens, the limit is 100000). Select fewer files.", len(bigPrompt)/4),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			stub := newLLMStub(t)
+			configureForTest(t, stub.URL)
+
+			_, err := Generate(context.Background(), dir, tt.files)
+			if err == nil || err.Error() != tt.want {
+				t.Errorf("Generate() error = %v, want %q", err, tt.want)
+			}
+			if got := stub.requests(); len(got) != 0 {
+				t.Errorf("LLM received %d requests, want 0", len(got))
+			}
+			if _, ok, _ := Load(dir); ok {
+				t.Error("a brief was stored after a failed Generate")
+			}
+		})
+	}
+}
+
+func TestGenerate_RetriesAnUnusableOverviewOnceThenWritesTheBrief(t *testing.T) {
+	dir := initRepo(t)
+	writeFile(t, dir, "README.md", "About the app")
+	writeFile(t, dir, "docs/guide.md", "How it works")
+	overview := strings.TrimSpace(validOverview())
+	stub := newLLMStub(t, "A plain paragraph.", overview, "- one.\n- two...")
+	configureForTest(t, stub.URL)
+	files := []string{"README.md", "docs/guide.md"}
+
+	got, err := Generate(context.Background(), dir, files)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	want := Brief{RepoPath: dir, Files: files, Text: "- one\n- two..."}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Generate() = %+v, want %+v", got, want)
+	}
+	if stored, ok, err := Load(dir); err != nil || !ok || !reflect.DeepEqual(stored, want) {
+		t.Errorf("Load() = %+v, %v, %v; want %+v, true, nil", stored, ok, err, want)
+	}
+
+	requests := stub.requests()
+	if len(requests) != 3 {
+		t.Fatalf("LLM received %d requests, want 3 (overview, retry, brief)", len(requests))
+	}
+	wantOverviewPrompt := prompt(overviewPrompt,
+		"<<<FILE README.md>>>\nAbout the app\n<<<END FILE>>>\n\n<<<FILE docs/guide.md>>>\nHow it works\n<<<END FILE>>>\n")
+	for i, p := range requests[:2] {
+		if p != wantOverviewPrompt {
+			t.Errorf("request %d = %q, want %q", i+1, p, wantOverviewPrompt)
+		}
+	}
+	if want := prompt(briefPrompt, "<<<OVERVIEW>>>\n"+overview+"\n<<<END OVERVIEW>>>\n"); requests[2] != want {
+		t.Errorf("brief request = %q, want %q", requests[2], want)
+	}
+}
+
+func TestGenerate_NoUsableOverviewFails(t *testing.T) {
+	tests := map[string]struct {
+		replies      []string
+		wantRequests int
+	}{
+		"sentinel is not retried":    {replies: []string{"INSUFFICIENT_SOURCES"}, wantRequests: 1},
+		"second unusable answer":     {replies: []string{"A plain paragraph.", "Another one."}, wantRequests: 2},
+		"sentinel after an unusable": {replies: []string{"A plain paragraph.", "```\nINSUFFICIENT_SOURCES\n```"}, wantRequests: 2},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := initRepo(t)
+			writeFile(t, dir, "README.md", "Contribution rules only")
+			stub := newLLMStub(t, tt.replies...)
+			configureForTest(t, stub.URL)
+
+			_, err := Generate(context.Background(), dir, []string{"README.md"})
+			if err == nil || err.Error() != notDescribed {
+				t.Errorf("Generate() error = %v, want %q", err, notDescribed)
+			}
+			if got := len(stub.requests()); got != tt.wantRequests {
+				t.Errorf("LLM received %d requests, want %d", got, tt.wantRequests)
+			}
+			if _, ok, _ := Load(dir); ok {
+				t.Error("a brief was stored after a failed Generate")
+			}
+		})
 	}
 }

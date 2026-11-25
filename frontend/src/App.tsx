@@ -5,7 +5,6 @@ import './TitleBar.css';
 import StatusBar from "./StatusBar";
 import './StatusBar.css';
 import {
-    AcquireProjectBrief,
     APIKeyUsedFallback,
     ChangedFiles,
     CommitFileDiff,
@@ -31,6 +30,7 @@ import DiffPane from "./DiffPane";
 import ExplanationPane, {CheckState} from "./ExplanationPane";
 import FileList from "./FileList";
 import ProjectBriefBar from "./ProjectBriefBar";
+import ProjectBriefDialog from "./ProjectBriefDialog";
 import {
     EventsOn,
     Position,
@@ -130,8 +130,7 @@ function App() {
     const [railWidth, setRailWidth] = useState(240);
 
     const [projectBrief, setProjectBrief] = useState<brief.State | null>(null);
-    const [acquiringBrief, setAcquiringBrief] = useState(false);
-    const [briefError, setBriefError] = useState<string>("");
+    const [briefDialogOpen, setBriefDialogOpen] = useState(false);
     const [briefExpanded, setBriefExpanded] = useState(false);
     const [useBrief, setUseBrief] = useState(true);
 
@@ -173,8 +172,6 @@ function App() {
     selectedPathRef.current = selectedPath;
     const selectedCommitRef = useRef(selectedCommit);
     selectedCommitRef.current = selectedCommit;
-    const repoGenerationRef = useRef(repoGeneration);
-    repoGenerationRef.current = repoGeneration;
 
     const [splitView, setSplitView] = useState<boolean>(() => {
         try {
@@ -475,26 +472,6 @@ function App() {
             .finally(() => setExplaining(false));
     }
 
-    function acquireProjectBrief() {
-        setAcquiringBrief(true);
-        setBriefError("");
-        const generation = repoGenerationRef.current;
-        AcquireProjectBrief()
-            .then((state) => {
-                if (repoGenerationRef.current !== generation) {
-                    return;
-                }
-                setProjectBrief(state);
-            })
-            .catch((err) => {
-                if (repoGenerationRef.current !== generation) {
-                    return;
-                }
-                setBriefError(String(err));
-            })
-            .finally(() => setAcquiringBrief(false));
-    }
-
     function runCheck(check: checks.Check) {
         if (checked.size === 0) {
             return;
@@ -548,6 +525,7 @@ function App() {
             resetSelection();
             setChecked(new Set());
             setProjectBrief(null);
+            setBriefDialogOpen(false);
             setBriefExpanded(false);
             loadRepoData();
         });
@@ -703,9 +681,7 @@ function App() {
                     <div className="diff-column">
                         <ProjectBriefBar
                             state={projectBrief}
-                            acquiring={acquiringBrief}
-                            error={briefError}
-                            onAcquire={acquireProjectBrief}
+                            onOpenDialog={() => setBriefDialogOpen(true)}
                             expanded={briefExpanded}
                             onExpandedChange={setBriefExpanded}
                             useBrief={useBrief}
@@ -746,6 +722,16 @@ function App() {
                     />
                 )}
                 {aboutDialogOpen && <AboutDialog onClose={closeAboutDialog} />}
+                {briefDialogOpen && (
+                    <ProjectBriefDialog
+                        state={projectBrief}
+                        onGenerated={(state) => {
+                            setProjectBrief(state);
+                            setBriefDialogOpen(false);
+                        }}
+                        onClose={() => setBriefDialogOpen(false)}
+                    />
+                )}
             </div>
             {!zen && <StatusBar key={repoGeneration}/>}
         </div>

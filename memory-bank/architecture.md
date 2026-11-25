@@ -103,7 +103,7 @@ Decision: cross-file/cross-commit summary, "explain everything" across all track
 Status: LOCKED
 Decision: any OpenAI-compatible endpoint. Config surface: `base_url` + `model` + `api_key`, defaulting to OpenAI's endpoint.
 Rationale: deliberately more general than "OpenAI only," which was offered and rejected. Costs one extra config field, gets Ollama / OpenRouter / local models for free.
-Detail: `base_url` doubles as the test seam. Tests point it at an `httptest.Server` instead of mocking an SDK client, see section 9. No SDK dependency for the LLM call — a raw HTTP POST to the chat-completions-shaped endpoint.
+Detail: `base_url` doubles as the test seam. Tests point it at an `httptest.Server` instead of mocking an SDK client, see section 10. No SDK dependency for the LLM call — a raw HTTP POST to the chat-completions-shaped endpoint.
 
 ## 7. Cost guard on large diffs
 Status: LOCKED that both controls below are required together. User framing: "on-demand only matters if you can see what it costs."
@@ -142,13 +142,40 @@ Conclusion: the original localhost-CSRF token mitigation (127.0.0.1 bind, random
 
 Caveat, do not overclaim: verified on Windows only, the test environment. macOS/Linux use different WebView2-equivalent backends (WebKit-based) and their IPC transport was not independently verified. If a future agent implements on macOS/Linux, spot-check the same "no listening port" assumption there rather than blindly assuming it is identical — though there is no specific reason to expect it differs, since Wails' architecture is transport-abstracted across platforms.
 
-## 9. Testing approach
+## 9. Project brief
+What: a short factual brief of the repo, 5–8 markdown bullets, ~150 words, used as optional reference context for Explain behind a "Use for Explain" toggle. Prepended to Explain prompts as a delimited block the model must treat as untrusted reference data, never as instructions. Chunked Explain-All adds it to the synthesis call only, not to map-phase calls. The brief text is part of the explain cache key (section 8), so toggling or regenerating it never serves stale prose.
+
+Status: LOCKED (explicit user decisions)
+- Sources: the user selects the source doc files in a dialog. No auto-pick from a fixed `AGENTS.md`/`CLAUDE.md` list.
+- Prompts: the ones of the sibling project AI-nspector's repo overview.
+- No staleness tracking. Regenerating after source docs change is the user's responsibility.
+- Generation is on-demand only, consistent with section 5. Nothing calls the LLM until the user explicitly requests a brief.
+
+Status: DEFAULT (proposed by the agent, user accepted)
+- Pipeline: two LLM calls. Call 1 produces an overview with 7 fixed headings: Purpose, Users, Features, Projects and architecture, Tech stack, Status, Gaps or conflicts in the docs. Validation: all headings present, at least one with facts, one retry; the `INSUFFICIENT_SOURCES` sentinel is an error. Call 2 shortens the overview to the brief. Only the brief is stored and shown; the overview is discarded.
+- Dialog pre-selection: the files of the last run that still exist, else the suggested files.
+- Doc discovery: `git ls-files`, tracked + untracked, `.gitignore` applied. Extensions `md`/`mdx`/`markdown`/`rst`/`adoc`; `.txt` only with doc-like names. Hidden folders: only `.github`, `.agent-files`, `.cursor`, at the repo root.
+- Suggested files: root `README*`, `ARCHITECTURE`, `DESIGN`, `OVERVIEW`, `INTENT`, `SPEC`, `CLAUDE`, `AGENTS`; plus `docs/*`, `.agent-files/*`, `.cursor/*`.
+- Limits: at most 5 files, ~100k tokens via `len/4` (same formula as section 7). Over the limit the request is rejected before any LLM call, never truncated. Deliberately differs from section 7's truncate-with-marker cost guard for diffs: the user sees the token count in the dialog and picks fewer files.
+- No "infer from repo structure" mode. Magik Diff has no project/manifest scan.
+
+Storage: one JSON file per repo at `<config base dir>/repos/<first 16 hex of sha256(normalized abs path)>.json`, same base dir as `config.json` (section 8). Normalized = absolute, cleaned, symlinks resolved, lowercased on Windows. Holds repo path, selected files, brief text. Persists across restarts, unlike the in-memory explain cache. Never inside the repo: preserves the read-only guarantee of section 2.
+Rejected alternatives, do not re-propose without new information:
+
+| Alternative | Why rejected |
+|---|---|
+| Auto-select a fixed list of AI-instruction files (previous design) | Overturned by explicit user decision: the user selects sources in a dialog. |
+| Hash-based stale detection of sources | Overturned by explicit user decision: no staleness tracking. |
+| Store the brief inside the repo (AI-nspector's `.ainspector/` dir) | Writes into the repo, breaks section 2's read-only guarantee. |
+| Truncate oversized input | Rejected before any LLM call instead; the dialog shows the token count so the user picks fewer files. |
+
+## 10. Testing approach
 Status: decision made, not yet executed.
 
 - Git layer: exercise real `git` against a real temp repo, `t.TempDir()` plus `git init` plus real commits as fixtures, rather than mocking git behavior. Mirrors the test-the-real-prior-layer-not-mocks philosophy for anything that shells out.
 - LLM layer: point the `base_url` config at an `httptest.Server`. Tests the real HTTP-call code path, request shape, SSE streaming, error handling, without hitting a real API and without a mocking framework or SDK test-double.
 
-## 10. Explicitly out of scope for v1
+## 11. Explicitly out of scope for v1
 Do not build unprompted. Do not treat absence as a bug.
 
 - Authentication.

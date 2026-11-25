@@ -238,9 +238,8 @@ func (a *App) VerifyLLMConfig(cfg config.Config, apiKey string) error {
 // the working tree when hash is empty or to the given commit otherwise. A
 // single path uses the terse per-file prompt; multiple paths are combined
 // into one diff blob and explained holistically. When useBrief is true and
-// a project brief is stored for the active repo (regardless of staleness),
-// its text is passed through as reference context; otherwise no brief is
-// used. Each chunk of the reply is emitted to the frontend as an
+// a project brief is stored for the active repo, its text is passed
+// through as reference context; otherwise no brief is used. Each chunk of the reply is emitted to the frontend as an
 // "explain:delta" event while it is generated, so the UI can render prose
 // instead of a placeholder during a call that can take a minute; the
 // complete text is still returned, and a cached result emits no deltas. It
@@ -266,19 +265,27 @@ func (a *App) Explain(hash string, paths []string, useBrief bool) (result string
 }
 
 // ProjectBrief returns the current state of the project brief for the
-// active repo: which AI-instruction files are present, whether a brief has
-// been extracted before, and whether it's stale relative to those files.
+// active repo: whether a brief has been generated before, and its text and
+// source files if so.
 func (a *App) ProjectBrief() (brief.State, error) {
 	return brief.GetState(a.repo.Dir())
 }
 
-// AcquireProjectBrief scans the active repo's AI-instruction files and
-// extracts a fresh project brief via the configured LLM, persisting it and
-// returning the resulting state. It returns a clear error if no
-// AI-instruction files are present, or if the LLM is not configured.
-func (a *App) AcquireProjectBrief() (brief.State, error) {
+// ProjectDocs lists the active repo's documentation files the user can
+// select as project brief sources, suggested ones first.
+func (a *App) ProjectDocs() ([]brief.DocFile, error) {
+	return brief.ListDocs(a.ctx, a.repo.Dir())
+}
+
+// GenerateProjectBrief generates a fresh project brief from files, paths
+// as returned by ProjectDocs, via the configured LLM, persisting it and
+// returning the resulting state. It returns a clear error if the selection
+// is empty, too long, too large, or not made of the repo's documentation
+// files, if the LLM is not configured, or if the files do not describe the
+// project.
+func (a *App) GenerateProjectBrief(files []string) (brief.State, error) {
 	root := a.repo.Dir()
-	if _, err := brief.Acquire(a.ctx, root); err != nil {
+	if _, err := brief.Generate(a.ctx, root, files); err != nil {
 		return brief.State{}, err
 	}
 	return brief.GetState(root)

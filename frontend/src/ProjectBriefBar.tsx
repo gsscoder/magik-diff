@@ -14,9 +14,7 @@ function RefreshIcon() {
 
 interface ProjectBriefBarProps {
     state: brief.State | null;
-    acquiring: boolean;
-    error: string;
-    onAcquire: () => void;
+    onOpenDialog: () => void;
     expanded: boolean;
     onExpandedChange: (expanded: boolean) => void;
     useBrief: boolean;
@@ -24,25 +22,20 @@ interface ProjectBriefBarProps {
 }
 
 function ProjectBriefBar(props: ProjectBriefBarProps) {
-    const {state, acquiring, error, onAcquire, expanded, onExpandedChange, useBrief, onUseBriefChange} = props;
+    const {state, onOpenDialog, expanded, onExpandedChange, useBrief, onUseBriefChange} = props;
     const {copied, copy: copyBrief} = useCopyToClipboard(state?.Brief.text);
 
-    if (!state || !state.HasSources) {
+    if (!state) {
         return null;
     }
 
     if (!state.Stored) {
         return (
             <div className="project-brief-bar">
-                <button
-                    className={acquiring ? "project-brief-acquire acquiring" : "project-brief-acquire"}
-                    disabled={acquiring}
-                    onClick={onAcquire}
-                >
+                <button className="project-brief-acquire" onClick={onOpenDialog}>
                     <RefreshIcon />
-                    {acquiring ? "Acquiring project brief…" : "Acquire project brief"}
+                    Acquire project brief
                 </button>
-                {error && <p className="explain-error project-brief-error">{error}</p>}
             </div>
         );
     }
@@ -56,9 +49,6 @@ function ProjectBriefBar(props: ProjectBriefBarProps) {
             >
                 <ExpandCollapseIcon expanded={expanded} />
                 <span>Project brief</span>
-                {state.Stale && (
-                    <span className="project-brief-stale-dot" title="Source files changed since this brief was extracted" />
-                )}
             </button>
             {expanded && (
                 <div className="project-brief-body">
@@ -76,15 +66,10 @@ function ProjectBriefBar(props: ProjectBriefBarProps) {
                         </label>
                         <div className="project-brief-action-buttons">
                             <button
-                                className={[
-                                    "project-brief-refresh",
-                                    acquiring && "acquiring",
-                                    state.Stale && "stale",
-                                ].filter(Boolean).join(" ")}
+                                className="project-brief-refresh"
                                 aria-label="Refresh project brief"
-                                title={state.Stale ? "Source files changed — refresh the brief" : "Refresh project brief"}
-                                disabled={acquiring}
-                                onClick={onAcquire}
+                                title="Refresh project brief"
+                                onClick={onOpenDialog}
                             >
                                 <RefreshIcon />
                             </button>
@@ -99,7 +84,6 @@ function ProjectBriefBar(props: ProjectBriefBarProps) {
                             </button>
                         </div>
                     </div>
-                    {error && <p className="explain-error project-brief-error">{error}</p>}
                 </div>
             )}
         </div>

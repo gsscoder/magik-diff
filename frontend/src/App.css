@@ -674,10 +674,6 @@
     background-color: var(--surface-hover);
 }
 
-.project-brief-acquire.acquiring svg {
-    animation: explain-spin 1s linear infinite;
-}
-
 .project-brief-header {
     display: flex;
     align-items: center;
@@ -694,13 +690,6 @@
 
 .project-brief-header:hover {
     background-color: var(--surface-hover);
-}
-
-.project-brief-stale-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background-color: var(--modified);
 }
 
 .project-brief-body {
@@ -747,20 +736,71 @@
     border-color: var(--border-strong);
 }
 
-.project-brief-refresh.stale {
-    color: var(--modified);
-    border-color: color-mix(in srgb, var(--modified) 40%, transparent);
+.project-brief-dialog {
+    width: 480px;
 }
 
-.project-brief-refresh.acquiring svg {
-    animation: explain-spin 1s linear infinite;
+.project-brief-dialog-selection {
+    display: flex;
+    gap: 8px;
 }
 
-.project-brief-bar .project-brief-error {
+.project-brief-doc-list {
+    list-style: none;
     margin: 0;
-    padding: 0 10px 8px;
-    color: var(--removed);
+    padding: 4px;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.project-brief-doc {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
     font-size: 12px;
+    cursor: pointer;
+}
+
+.project-brief-doc:hover {
+    background-color: var(--surface-hover);
+}
+
+.project-brief-doc-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+}
+
+.project-brief-doc-dir,
+.project-brief-doc-size {
+    color: var(--text-muted);
+}
+
+.project-brief-doc-size {
+    flex-shrink: 0;
+}
+
+.project-brief-dialog-hint {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.project-brief-dialog-over {
+    color: var(--removed);
+}
+
+.project-brief-dialog .explain-error {
+    margin: 0;
+    font-size: 12px;
+    color: var(--removed);
 }
 
 /* Explanation pane */
