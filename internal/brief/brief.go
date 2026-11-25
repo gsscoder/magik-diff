@@ -276,7 +276,7 @@ func sourcesContent(root string, sources []Source) (combined string, truncated b
 func extractionPrompt(combined string, truncated bool) string {
 	note := ""
 	if truncated {
-		note = " the content below was truncated to fit a size limit; work with what is given.\n\n"
+		note = "\n\nthe content below was truncated to fit a size limit; work with what is given"
 	}
 	return fmt.Sprintf(
 		"the following is the concatenated content of one or more AI-agent "+
@@ -287,17 +287,15 @@ func extractionPrompt(combined string, truncated bool) string {
 			"AI coding agent how to behave (e.g. \"do not over-engineer\", "+
 			"\"write clean code\", coding style rules, guardrails, workflow "+
 			"rules), and concrete facts about the project itself. discard all "+
-			"agent directives/rules entirely and extract only the concrete "+
-			"project facts: the project's purpose/brief, its language(s), its "+
+			"agent directives/rules and extract only the concrete project "+
+			"facts: the project's purpose/brief, its language(s), its "+
 			"frameworks/libraries, its architectural pattern, and any notable "+
-			"structure. write the result as plain prose in a minimum of 4 and "+
-			"a maximum of 6 sentences, no headings or bullet lists, no "+
-			"meta-commentary about this extraction process itself, no "+
-			"restating that directives were discarded, and do not game the "+
-			"sentence count by writing artificially long run-on sentences "+
-			"stitched together with semicolons, commas, or excessive "+
-			"conjunctions instead of real sentence breaks; each sentence "+
-			"should be a normal, natural-length sentence.%s\n\n%s",
+			"structure. write the result as plain prose in 4 to 6 "+
+			"natural-length sentences; do not game the count with run-on "+
+			"sentences stitched together by semicolons, commas, or "+
+			"conjunctions. no headings or bullet lists, no meta-commentary "+
+			"about this extraction, no restating that directives were "+
+			"discarded%s\n\n%s",
 		note, combined,
 	)
 }

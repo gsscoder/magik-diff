@@ -41,6 +41,13 @@ The development documents are in the `memory-bank` dir — they primarily focus 
 - Quality: production-grade — every line will be reviewed
 - Markdown: compact, no linting compliance, formatting identical to this file
 
+## Prompts Generation
+- Lowercase sentence starts; capitals aren't required at the beginning of a sentence or after a period
+- Drop the trailing period when a line break already ends the sentence
+- Keep blank lines only where they carry meaning (separating distinct blocks); no filler blank lines
+- Favor the tightest clear phrasing; cut redundancy
+- Leave already-tight prose alone — don't rewrite what already meets these points
+
 ### Go Code Standards
 - Generate production-grade Go (1.23+) code, favoring idiomatic, safe, and performant patterns over legacy or over-engineered abstractions
 - Avoid `panic` for expected errors; wrap with `fmt.Errorf` using `%w` and check with `errors.Is`/`errors.As`
