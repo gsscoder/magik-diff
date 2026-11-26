@@ -19,7 +19,7 @@ var assets embed.FS
 // version is shown by --version and the About dialog. It can be overridden at
 // release build time via -ldflags "-X main.version=...". It is the single source
 // of truth: after editing it, run `node scripts/sync-version.mjs`.
-var version = "0.7.0"
+var version = "0.9.0"
 
 func main() {
 	if len(os.Args) > 1 {

@@ -13,7 +13,7 @@ Go + Wails (native desktop shell, OS webview, no bundled Chromium), React (front
 - `internal/diffparse` — hunk/line structuring and word-level intraline diffing
 - `internal/llm` — OpenAI-compatible HTTP client for the Explain/Explain-All calls
 - `internal/explain` — prompt construction and Explain/RunCheck orchestration, plus the in-memory explain cache
-- `internal/checks` — built-in diff checks: `language-consistency` (flags identifiers that are not English or that mix languages)
+- `internal/checks` — built-in diff checks: `language-consistency` (flags identifiers that are not English or that mix languages), `hardcoded-secrets` (flags credentials added as literal values)
 - `internal/config` — settings and API key persistence
 - `internal/watch` — filesystem watcher that emits `repo:changed` events for background UI refresh
 - `frontend/src` — React UI (`App.tsx` plus `FileList`/`DiffPane`/`ExplanationPane`: left rail, center diff, right AI pane)

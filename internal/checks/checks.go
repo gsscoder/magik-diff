@@ -12,7 +12,7 @@ type Check struct {
 
 // builtins is the catalog of built-in checks, in the order the UI shows
 // their buttons.
-var builtins = []Check{languageConsistency}
+var builtins = []Check{languageConsistency, hardcodedSecrets}
 
 // List returns every built-in check, in button order. The result is a copy,
 // so a caller can modify it without affecting the catalog.

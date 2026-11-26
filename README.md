@@ -1,6 +1,6 @@
 # Magik Diff
 
-![version](https://img.shields.io/badge/version-0.7.0-blue)
+![version](https://img.shields.io/badge/version-0.9.0-blue)
 
 A native git diff viewer with an on-demand LLM explanation pane, covering a single file, all tracked changes, or any past commit. You stay in the review loop; the model just gets you there faster.
 
@@ -30,6 +30,7 @@ Each file's diff renders as unified (`+`/`-` inline) or split (old file on the l
 Built-in checks appear as buttons beside Explain. Each one runs against any diff or commit as an independent LLM call with its own prompt, and shows its results in a scrollable panel.
 
 - `language-consistency` — Flags identifiers that are not English, or that mix two languages in one symbol
+- `hardcoded-secrets` — Flags keys, tokens, passwords and other credentials that the change adds as literal values
 
 ## CLI
 
