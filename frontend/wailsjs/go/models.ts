@@ -72,7 +72,6 @@ export namespace checks {
 	export class Check {
 	    Name: string;
 	    Description: string;
-	    Color: string;
 	    Prompt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -83,7 +82,6 @@ export namespace checks {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Name = source["Name"];
 	        this.Description = source["Description"];
-	        this.Color = source["Color"];
 	        this.Prompt = source["Prompt"];
 	    }
 	}

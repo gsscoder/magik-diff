@@ -1,6 +1,6 @@
 # Magik Diff
 
-![version](https://img.shields.io/badge/version-0.6.0-blue)
+![version](https://img.shields.io/badge/version-0.7.0-blue)
 
 A native git diff viewer with an on-demand LLM explanation pane, covering a single file, all tracked changes, or any past commit. You stay in the review loop; the model just gets you there faster.
 
@@ -27,19 +27,14 @@ Each file's diff renders as unified (`+`/`-` inline) or split (old file on the l
 
 ## Checks
 
-Beyond the built-in explanation, you can run your own checks against any diff or commit, each as an independent LLM call with its own prompt. A check is a Markdown file with a front matter block (`name`, `description`, `color`) and a prompt body; see `checks/language-consistency.md` for a working example. Install one via the CLI:
+Built-in checks appear as buttons beside Explain. Each one runs against any diff or commit as an independent LLM call with its own prompt, and shows its results in a scrollable panel.
 
-```sh
-mdiff check add path/to/my-check.md
-```
-
-Installed checks appear as buttons beside Explain, with scrollable result panels.
+- `language-consistency` — Flags identifiers that are not English, or that mix two languages in one symbol
 
 ## CLI
 
 ```sh
 mdiff                          launch the GUI
-mdiff check add <file.md>      install a check
 mdiff --version, -v            show version
 mdiff --help, -h               show this help
 ```

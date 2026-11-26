@@ -96,6 +96,18 @@ func TestRunCheck_NoSelection(t *testing.T) {
 	}
 }
 
+func TestRunCheck_UnknownName(t *testing.T) {
+	s := NewService()
+	// a nil repo is safe only because the name is rejected before any git call
+	_, err := s.RunCheck(context.Background(), nil, "", "no-such-check", []string{"a.txt"})
+	if err == nil {
+		t.Fatal("RunCheck: expected error for an unknown check name, got nil")
+	}
+	if !strings.Contains(err.Error(), "no-such-check") {
+		t.Errorf("RunCheck error = %q, want it to mention %q", err.Error(), "no-such-check")
+	}
+}
+
 func TestService_CacheHitReturnsStoredResult(t *testing.T) {
 	s := NewService()
 	key := cacheKey("some diff", "gpt-4o-mini", "file", "")
@@ -213,6 +225,14 @@ func TestCheckPrompt_NeverEmbedsProjectBrief(t *testing.T) {
 	got := checkPrompt("some diff", c)
 	if strings.Contains(got, "project brief") {
 		t.Errorf("checkPrompt() = %q, must never embed project-brief content: checks always run without one", got)
+	}
+}
+
+func TestCheckPrompt_FixedNoIssueAnswer(t *testing.T) {
+	c := checks.Check{Name: "test-check", Prompt: "check for foo"}
+	got := checkPrompt("some diff", c)
+	if !strings.Contains(got, "answer exactly: No issues found") {
+		t.Errorf("checkPrompt() = %q, want a fixed no-issue answer the model must return verbatim", got)
 	}
 }
 

@@ -72,18 +72,18 @@ func (s *Service) Explain(ctx context.Context, repo *gitdiff.Repo, hash string, 
 	return s.runChunked(ctx, groups, projectBrief, onDelta)
 }
 
-// RunCheck runs the named user-defined check against the diffs of paths in
+// RunCheck runs the named built-in check against the diffs of paths in
 // repo, scoped to the working tree when hash is empty or to the given
 // commit otherwise, returning the LLM's prose response. It returns a clear
-// error if paths is empty, if no check with that name exists, or if the
+// error if paths is empty, if checkName is not a built-in check, or if the
 // base URL, model, or API key is not configured.
 func (s *Service) RunCheck(ctx context.Context, repo *gitdiff.Repo, hash, checkName string, paths []string) (string, error) {
 	if len(paths) == 0 {
 		return "", fmt.Errorf("nothing to check: no files are selected")
 	}
-	c, err := findCheck(checkName)
-	if err != nil {
-		return "", err
+	c, ok := checks.Find(checkName)
+	if !ok {
+		return "", fmt.Errorf("unknown check %q", checkName)
 	}
 	combined, err := combineDiffs(ctx, repo, hash, paths)
 	if err != nil {
@@ -263,33 +263,18 @@ func synthesisPrompt(summaries []string, projectBrief string) string {
 	)
 }
 
-// checkPrompt builds the prompt for running a single user-defined check
+// checkPrompt builds the prompt for running a single built-in check
 // against a single diff, embedding the check's own instructions verbatim.
 func checkPrompt(diff string, c checks.Check) string {
 	return fmt.Sprintf(
 		"you are running a specific automated check against the following "+
 			"diff. the check's instructions are:\n\n%s\n\napply those "+
-			"instructions to the diff below and report your findings in plain "+
-			"prose. no preamble, no restating the diff, no unrelated "+
-			"commentary\n\n%s",
+			"instructions to the diff below. no preamble, no restating the "+
+			"diff, no unrelated commentary. if you find no issue, answer "+
+			"exactly: No issues found\n\n%s",
 		c.Prompt,
 		diff,
 	)
-}
-
-// findCheck loads every available check and returns the one named
-// checkName, or a clear error if none matches.
-func findCheck(checkName string) (checks.Check, error) {
-	all, err := checks.List()
-	if err != nil {
-		return checks.Check{}, err
-	}
-	for _, c := range all {
-		if c.Name == checkName {
-			return c, nil
-		}
-	}
-	return checks.Check{}, fmt.Errorf("no check named %q is configured", checkName)
 }
 
 // runExplain sends prompt to the configured LLM and returns its prose

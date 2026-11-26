@@ -185,6 +185,15 @@ Do not build unprompted. Do not treat absence as a bug.
 - Diff virtualization or streaming diff rendering for very large files.
 - CI/release automation: GitHub Actions matrix, GoReleaser.
 
+## 12. Built-in checks
+Status: LOCKED (explicit user decision)
+Decision: checks are a hardcoded catalog in `internal/checks`. Adding a check = one file with a `Check` value + one entry in `builtins`. No user-supplied check files.
+Rejected alternatives, do not re-propose without new information:
+
+| Alternative | Why rejected |
+|---|---|
+| User check files in `<config dir>/checks`, Markdown with YAML front matter, installed via `mdiff check add` | Extra install step. A YAML dependency for one parser. Malformed files silently skipped. |
+
 ## Open items requiring user confirmation before implementation
 - Byte cap value for the cost guard, section 7. No number pinned anywhere.
 - Rationale for no-markdown-rendering, section 8. Decision itself is DEFAULT and stands; the why is unrecoverable and unconfirmed.

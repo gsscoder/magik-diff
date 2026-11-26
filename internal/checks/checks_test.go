@@ -1,92 +1,53 @@
 package checks
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
-const validCheckFile = `---
-name: "language-consistency"
-description: |
-  Flags identifiers, comments, or literals that are not consistently English.
-color: red
----
-
-Check for symbols that are not consistently English.
-`
-
-const malformedCheckFile = `no frontmatter here, just a prompt body`
-
-func writeCheckFile(t *testing.T, dir, name, content string) string {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) error = %v", path, err)
-	}
-	return path
-}
-
-func TestParseFileValidCheck(t *testing.T) {
-	dir := t.TempDir()
-	path := writeCheckFile(t, dir, "language-consistency.md", validCheckFile)
-
-	got, err := ParseFile(path)
-	if err != nil {
-		t.Fatalf("ParseFile() error = %v, want nil", err)
-	}
-	if got.Name != "language-consistency" {
-		t.Errorf("Name = %q, want %q", got.Name, "language-consistency")
-	}
-	if got.Color != "red" {
-		t.Errorf("Color = %q, want %q", got.Color, "red")
-	}
-	wantPrompt := "Check for symbols that are not consistently English."
-	if got.Prompt != wantPrompt {
-		t.Errorf("Prompt = %q, want %q", got.Prompt, wantPrompt)
+func TestList_EveryCheckIsComplete(t *testing.T) {
+	for _, c := range List() {
+		if c.Name == "" || c.Description == "" || c.Prompt == "" {
+			t.Errorf("built-in check %q has an empty field: %+v", c.Name, c)
+		}
 	}
 }
 
-func TestParseFileMalformedFrontmatter(t *testing.T) {
-	dir := t.TempDir()
-	path := writeCheckFile(t, dir, "bad.md", malformedCheckFile)
-
-	if _, err := ParseFile(path); err == nil {
-		t.Fatal("ParseFile() error = nil, want error for malformed frontmatter")
+func TestList_NamesAreUnique(t *testing.T) {
+	seen := make(map[string]bool)
+	for _, c := range List() {
+		if seen[c.Name] {
+			t.Errorf("built-in check name %q is used more than once", c.Name)
+		}
+		seen[c.Name] = true
 	}
 }
 
-func TestListMissingDirectoryReturnsEmptySlice(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	got, err := List()
-	if err != nil {
-		t.Fatalf("List() error = %v, want nil", err)
+func TestFind_KnownName(t *testing.T) {
+	c, ok := Find("language-consistency")
+	if !ok {
+		t.Fatal(`Find("language-consistency"): got false, want true`)
 	}
-	if len(got) != 0 {
-		t.Fatalf("List() = %+v, want empty slice", got)
+	if c.Name != "language-consistency" {
+		t.Errorf("Find returned check named %q, want %q", c.Name, "language-consistency")
 	}
 }
 
-func TestListValidAndMalformedFiles(t *testing.T) {
-	base := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", base)
+func TestFind_UnknownName(t *testing.T) {
+	if c, ok := Find("no-such-check"); ok {
+		t.Errorf(`Find("no-such-check") = %+v, true; want false`, c)
+	}
+}
 
-	dir := filepath.Join(base, "mdiff", "checks")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("MkdirAll() error = %v", err)
+func TestList_ReturnsCopy(t *testing.T) {
+	got := List()
+	if len(got) == 0 {
+		t.Fatal("List returned no built-in checks")
 	}
-	writeCheckFile(t, dir, "language-consistency.md", validCheckFile)
-	writeCheckFile(t, dir, "bad.md", malformedCheckFile)
+	name := got[0].Name
+	got[0].Prompt = "mutated"
 
-	got, err := List()
-	if err != nil {
-		t.Fatalf("List() error = %v, want nil", err)
+	if List()[0].Prompt == "mutated" {
+		t.Error("mutating a List result changed a later List result")
 	}
-	if len(got) != 1 {
-		t.Fatalf("List() returned %d checks, want 1 (malformed file should be skipped): %+v", len(got), got)
-	}
-	if got[0].Name != "language-consistency" {
-		t.Errorf("Name = %q, want %q", got[0].Name, "language-consistency")
+	if c, _ := Find(name); c.Prompt == "mutated" {
+		t.Error("mutating a List result changed a later Find result")
 	}
 }

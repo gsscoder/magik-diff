@@ -291,17 +291,16 @@ func (a *App) GenerateProjectBrief(files []string) (brief.State, error) {
 	return brief.GetState(root)
 }
 
-// ListChecks returns every user-defined check available in the checks
-// directory.
-func (a *App) ListChecks() ([]checks.Check, error) {
+// ListChecks returns every built-in check, in button order.
+func (a *App) ListChecks() []checks.Check {
 	return checks.List()
 }
 
-// RunCheck runs the named user-defined check against the diffs of paths,
+// RunCheck runs the named built-in check against the diffs of paths,
 // scoped to the working tree when hash is empty or to the given commit
 // otherwise, returning the LLM's prose response. It returns a clear error
-// if paths is empty, if no check with that name exists, or if the base URL,
-// model, or API key is not configured.
+// if paths is empty, if checkName is not a built-in check, or if the base
+// URL, model, or API key is not configured.
 func (a *App) RunCheck(hash, checkName string, paths []string) (string, error) {
 	return a.explain.RunCheck(a.ctx, a.repo, hash, checkName, paths)
 }
